@@ -5239,9 +5239,9 @@ function renderOverview() {
 // ── タイムラインビュー（24時間横軸チャート）────────────────────
 let tlCurrentDate = new Date();
 
-const TL_START_HOUR = 6;  // 表示開始: 6時
-const TL_END_HOUR = 22;   // 表示終了: 22時
-const TL_HOURS = TL_END_HOUR - TL_START_HOUR; // 16時間分
+const TL_START_HOUR = 0;   // 表示開始: 0時
+const TL_END_HOUR = 24;    // 表示終了: 24時
+const TL_HOURS = TL_END_HOUR - TL_START_HOUR; // 24時間分
 
 function tlDateMove(dir) {
   tlCurrentDate.setDate(tlCurrentDate.getDate() + dir);
@@ -5261,10 +5261,15 @@ function renderTimeline() {
   document.getElementById('tl-date-label').textContent =
     `${tlCurrentDate.getFullYear()}年${tlCurrentDate.getMonth()+1}月${tlCurrentDate.getDate()}日（${dayName}）`;
 
-  // データ取得（localStorage版・当日分フィルタ）
-  const entries = lsLoad(LS_SCH_ENTRIES).filter(e => e.date === dateStr);
+  // データ取得（当日 + 前日の日またぎ分）
+  const allEntries = lsLoad(LS_SCH_ENTRIES);
+  const entries = allEntries.filter(e => e.date === dateStr);
+  const prevDate = new Date(tlCurrentDate); prevDate.setDate(prevDate.getDate() - 1);
+  const prevDateStr = formatDate(prevDate);
+  const prevEntries = allEntries.filter(e => e.date === prevDateStr);
 
   const staffList = getOrderedStaff();
+  const totalMin = TL_HOURS * 60; // 24*60=1440
 
   const container = document.getElementById('tl-chart');
 
@@ -5281,12 +5286,27 @@ function renderTimeline() {
   }
   html += '</div>';
 
-  // 各スタッフの行
-  staffList.forEach(([userId, userName]) => {
-    const userEntries = entries.filter(e => e.staff && e.staff.includes(userId));
+  // エントリの開始・終了分を計算するヘルパー
+  function parseTlEntry(e) {
+    if (!e.start_time) return null;
+    const sp = e.start_time.split(':').map(Number);
+    const ep = (e.end_time || e.start_time).split(':').map(Number);
+    const startMin = sp[0] * 60 + (sp[1]||0);
+    const endMinRaw = ep[0] * 60 + (ep[1]||0);
+    // "00:00" 終了は翌日0時=1440分扱い（当日の深夜終了）
+    const endMin = (endMinRaw === 0 && e.end_time) ? 1440 : endMinRaw;
+    const isOvernight = endMin < startMin; // 日をまたぐ
+    return { startMin, endMin, isOvernight };
+  }
 
-    html += `<div class="tl-row" data-uid="${userId}">`;
-    html += `<div class="tl-row-name" style="cursor:grab" title="ドラッグして並び替え"><span style="color:var(--muted);margin-right:4px;font-size:13px">⠿</span>${escHtml(userName)}</div>`;
+  // 各スタッフ・協力会社の行
+  staffList.forEach(([userId, userName, rowType]) => {
+    const isContractor = rowType === 'contractor';
+    const rowBg = isContractor ? 'background:rgba(245,158,11,.04)' : '';
+
+    html += `<div class="tl-row" data-uid="${userId}" style="${rowBg}">`;
+    const icon = isContractor ? '<span style="font-size:11px;margin-right:3px;opacity:.7">🏢</span>' : '';
+    html += `<div class="tl-row-name" style="cursor:grab" title="ドラッグして並び替え"><span style="color:var(--muted);margin-right:4px;font-size:13px">⠿</span>${icon}${escHtml(userName)}</div>`;
     html += `<div class="tl-row-bar">`;
 
     // 時間グリッド線
@@ -5296,36 +5316,40 @@ function renderTimeline() {
     }
     html += '</div>';
 
-    // エントリバー
-    userEntries.forEach(e => {
-      if (!e.start_time) return; // 時間なしはスキップ
-      const startParts = e.start_time.split(':').map(Number);
-      const endParts = (e.end_time || e.start_time).split(':').map(Number);
-      const startMin = startParts[0] * 60 + (startParts[1]||0);
-      const endMin = endParts[0] * 60 + (endParts[1]||0);
-      const totalMin = TL_HOURS * 60;
-      const offsetMin = startMin - TL_START_HOUR * 60;
-      const durationMin = endMin - startMin;
-
-      // 表示範囲外はクリップ
-      const leftPct = Math.max(0, (offsetMin / totalMin) * 100);
-      const widthPct = Math.min(100 - leftPct, (durationMin / totalMin) * 100);
-      if (widthPct <= 0) return;
-
+    // 当日エントリ
+    entries.filter(e => e.staff && e.staff.includes(userId)).forEach(e => {
+      const p = parseTlEntry(e); if (!p) return;
       const color = e.project_color || '#6366f1';
       const label = e.project_name || e.title;
-      html += `<div class="tl-entry-bar" style="left:${leftPct}%;width:${widthPct}%;background:${color}" onclick="openScheduleDetail(${e.id})" title="${escHtml(e.title)} ${e.start_time}〜${e.end_time||''}">${escHtml(label)}</div>`;
+      if (p.isOvernight) {
+        // 日をまたぐ → 当日は startMin〜1440（深夜）まで表示、▶付き
+        const leftPct = (p.startMin / totalMin) * 100;
+        const widthPct = ((1440 - p.startMin) / totalMin) * 100;
+        html += `<div class="tl-entry-bar" style="left:${leftPct}%;width:${widthPct}%;background:${color};border-right:3px solid rgba(255,255,255,.8)" onclick="openScheduleDetail(${e.id})" title="${escHtml(e.title)} ${e.start_time}〜${e.end_time||''} (翌日続く)">${escHtml(label)} ▶</div>`;
+      } else {
+        const leftPct = (p.startMin / totalMin) * 100;
+        const widthPct = Math.min(100 - leftPct, ((p.endMin - p.startMin) / totalMin) * 100);
+        if (widthPct <= 0) return;
+        html += `<div class="tl-entry-bar" style="left:${leftPct}%;width:${widthPct}%;background:${color}" onclick="openScheduleDetail(${e.id})" title="${escHtml(e.title)} ${e.start_time}〜${e.end_time||''}">${escHtml(label)}</div>`;
+      }
+    });
+
+    // 前日の日またぎエントリ（当日 0:00〜endMin に続きを表示）
+    prevEntries.filter(e => e.staff && e.staff.includes(userId)).forEach(e => {
+      const p = parseTlEntry(e); if (!p || !p.isOvernight) return;
+      const color = e.project_color || '#6366f1';
+      const label = e.project_name || e.title;
+      const widthPct = (p.endMin / totalMin) * 100;
+      if (widthPct <= 0) return;
+      html += `<div class="tl-entry-bar" style="left:0%;width:${widthPct}%;background:${color};opacity:.8;border-left:3px solid rgba(255,255,255,.8)" onclick="openScheduleDetail(${e.id})" title="${escHtml(e.title)} ${e.start_time}〜${e.end_time||''} (前日より続く)">◀ ${escHtml(label)}</div>`;
     });
 
     // 現在時刻の赤線（今日の場合のみ）
     if (isToday) {
       const now = new Date();
       const nowMin = now.getHours() * 60 + now.getMinutes();
-      const nowOffset = nowMin - TL_START_HOUR * 60;
-      if (nowOffset >= 0 && nowOffset <= TL_HOURS * 60) {
-        const nowPct = (nowOffset / (TL_HOURS * 60)) * 100;
-        html += `<div class="tl-now-line" style="left:${nowPct}%"><div class="tl-now-dot"></div></div>`;
-      }
+      const nowPct = (nowMin / totalMin) * 100;
+      html += `<div class="tl-now-line" style="left:${nowPct}%"><div class="tl-now-dot"></div></div>`;
     }
 
     html += '</div></div>'; // tl-row-bar, tl-row
