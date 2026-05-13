@@ -490,6 +490,34 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
       <button class="btn-secondary" style="padding:6px 14px;font-size:12px;color:var(--accent)" onclick="loadDemoData()">🗂 デモデータ投入</button>
     </div>
   </div>
+  <!-- CSVインポート -->
+  <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+    <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:6px">📥 CSVインポート</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Excelで作ったCSVから一括取り込み。既存データに追加されます。</div>
+    <div style="display:grid;gap:10px">
+      <div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:5px">🏗 案件（施工項目）</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn-secondary" style="padding:5px 12px;font-size:12px" onclick="downloadCsvTemplate('projects')">📄 テンプレートDL</button>
+          <label class="btn-secondary" style="padding:5px 12px;font-size:12px;cursor:pointer">⬆ CSVを取り込む<input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this,'projects')"></label>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:5px">🏢 協力会社・職人</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn-secondary" style="padding:5px 12px;font-size:12px" onclick="downloadCsvTemplate('contractors')">📄 テンプレートDL</button>
+          <label class="btn-secondary" style="padding:5px 12px;font-size:12px;cursor:pointer">⬆ CSVを取り込む<input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this,'contractors')"></label>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:5px">📦 資材注文</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn-secondary" style="padding:5px 12px;font-size:12px" onclick="downloadCsvTemplate('orders')">📄 テンプレートDL</button>
+          <label class="btn-secondary" style="padding:5px 12px;font-size:12px;cursor:pointer">⬆ CSVを取り込む<input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this,'orders')"></label>
+        </div>
+      </div>
+    </div>
+  </div>
   <!-- パスコード管理 -->
   <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px">🔑 スタッフパスコード管理</div>
@@ -8491,6 +8519,204 @@ function removeContractorFromProject(projectId, contractorId) {
 
 // Phase 6-H: renderMasterPanel の末尾（renderUserFeatures()の直後）で
 // renderContractorList() を呼び出すよう元の関数に追加済み。
+
+// ── CSVインポート ─────────────────────────────────────────────────
+let _csvPendingType = '';
+let _csvPendingRows = [];
+
+const CSV_TEMPLATES = {
+  projects: {
+    headers: ['案件名','顧客名','現場住所','種別','フェーズ','見積金額','担当者ID','備考'],
+    sample: [
+      ['テストビル LED看板工事','株式会社テストビル','東京都新宿区1-1-1','看板','受付','0','kanno','1Fエントランス'],
+      ['渋谷店 内装工事','株式会社渋谷商事','東京都渋谷区2-3-4','内装','設計中','500000','kanno/machida','スケルトンから']
+    ],
+    notes: [
+      '# 種別: 看板 / 内装 / その他',
+      '# フェーズ: 受付 / 受注確定 / 設計中 / 見積中 / 発注準備 / 発注済 / 施工調整中 / 施工中 / 完了 / 請求済',
+      '# 担当者ID: kannoなど（複数はスラッシュ区切り例: kanno/machida）'
+    ]
+  },
+  contractors: {
+    headers: ['会社名','種別','工種','連絡先','メール','対応地域','備考'],
+    sample: [
+      ['三十興行','会社','電気/塗装','09012345678','','全国',''],
+      ['田中一郎','個人','大工/内装','09087654321','','東京都/神奈川県','大工歴20年']
+    ],
+    notes: [
+      '# 種別: 会社 / 個人',
+      '# 工種・対応地域は複数の場合スラッシュ区切り例: 看板/電気'
+    ]
+  },
+  orders: {
+    headers: ['商品名','数量','金額(円)','備考','中国ステータス','到着予定日'],
+    sample: [
+      ['LEDモジュール 100pcs','100','18000','テストビル工事用','未発注',''],
+      ['アルミフレーム 40mm×5m','10','8500','次期案件ストック','生産中','2026-06-25']
+    ],
+    notes: [
+      '# 中国ステータス: 未発注 / 発注済 / 生産中 / 出荷待ち / 輸送中 / 通関中 / 到着済',
+      '# 到着予定日: YYYY-MM-DD形式（例: 2026-06-25）'
+    ]
+  }
+};
+
+const CSV_TYPE_LABELS = {projects:'案件（施工項目）', contractors:'協力会社・職人', orders:'資材注文'};
+
+function downloadCsvTemplate(type) {
+  const tmpl = CSV_TEMPLATES[type];
+  if (!tmpl) return;
+  let csv = '﻿';
+  tmpl.notes.forEach(n => { csv += n + '\n'; });
+  csv += tmpl.headers.join(',') + '\n';
+  tmpl.sample.forEach(row => {
+    csv += row.map(v => '"' + String(v).replace(/"/g,'""') + '"').join(',') + '\n';
+  });
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'AGO_' + type + '_テンプレート.csv';
+  a.click();
+  showToast('テンプレートをダウンロードしました');
+}
+
+function parseCsvText(text) {
+  text = text.replace(/^﻿/, '');
+  const lines = text.split(/\r?\n/).filter(l => l.trim() && !l.trim().startsWith('#'));
+  if (lines.length < 2) return {headers:[], rows:[]};
+  const parseRow = (line) => {
+    const result = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { if (inQ && line[i+1]==='"') { cur+='"'; i++; } else { inQ=!inQ; } }
+      else if (c === ',' && !inQ) { result.push(cur.trim()); cur=''; }
+      else { cur += c; }
+    }
+    result.push(cur.trim());
+    return result;
+  };
+  const headers = parseRow(lines[0]);
+  const rows = lines.slice(1).map(l => {
+    const vals = parseRow(l);
+    const obj = {};
+    headers.forEach((h,i) => { obj[h] = vals[i] || ''; });
+    return obj;
+  }).filter(r => Object.values(r).some(v => v));
+  return {headers, rows};
+}
+
+function handleCsvImport(inputEl, type) {
+  const file = inputEl.files[0];
+  if (!file) return;
+  inputEl.value = '';
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const {headers, rows} = parseCsvText(e.target.result);
+    if (!rows.length) { showToast('CSVにデータが見つかりませんでした'); return; }
+    _csvPendingType = type;
+    _csvPendingRows = rows;
+    document.getElementById('csv-preview-title').textContent = CSV_TYPE_LABELS[type] + ' CSVプレビュー';
+    document.getElementById('csv-preview-info').textContent = rows.length + '件を取り込みます（既存データに追加）';
+    let table = '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+    table += '<tr>' + headers.map(h=>`<th style="padding:5px 8px;background:#1e293b;text-align:left;border:1px solid var(--border);white-space:nowrap">${h}</th>`).join('') + '</tr>';
+    rows.slice(0,15).forEach(row => {
+      table += '<tr>' + headers.map(h=>`<td style="padding:4px 8px;border:1px solid var(--border);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${row[h]||''}</td>`).join('') + '</tr>';
+    });
+    if (rows.length > 15) table += `<tr><td colspan="${headers.length}" style="padding:5px;text-align:center;color:var(--muted);border:1px solid var(--border)">...他 ${rows.length-15} 件</td></tr>`;
+    table += '</table>';
+    document.getElementById('csv-preview-table').innerHTML = table;
+    document.getElementById('csv-preview-error').textContent = '';
+    const modal = document.getElementById('csv-preview-modal');
+    modal.style.display = 'flex';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function closeCsvPreviewModal() {
+  document.getElementById('csv-preview-modal').style.display = 'none';
+  _csvPendingType = ''; _csvPendingRows = [];
+}
+
+function confirmCsvImport() {
+  const type = _csvPendingType;
+  const rows = _csvPendingRows;
+  if (!type || !rows.length) return;
+  let imported = 0; const errors = [];
+  const now = new Date().toLocaleString('ja-JP');
+
+  if (type === 'projects') {
+    const phaseMap = {
+      '受付':'reception','受注確定':'confirmed','設計中':'designing','見積中':'estimating',
+      '発注準備':'order-prep','発注済':'ordered','施工調整中':'construction-adj',
+      '施工中':'construction','完了':'completed','請求済':'invoiced','キャンセル':'cancelled'
+    };
+    const typeMap = {'看板':'signage','内装':'interior','その他':'other'};
+    const existing = lsLoad(LS_PROJECTS_PIPELINE);
+    const maxId = existing.length > 0 ? Math.max(...existing.map(p=>p.id||0)) : 0;
+    const newItems = rows.map((row,i) => {
+      if (!row['案件名']) { errors.push((i+1)+'行目: 案件名が空'); return null; }
+      const staffRaw = row['担当者ID'] || '';
+      return {
+        id: maxId + i + 1, name: row['案件名'], client_name: row['顧客名']||'',
+        location: row['現場住所']||'', type: typeMap[row['種別']]||'other',
+        phase: phaseMap[row['フェーズ']]||'reception', estimate: parseInt(row['見積金額'])||0,
+        staff: staffRaw ? staffRaw.split(/[\/,]/).map(s=>s.trim()).filter(Boolean) : [],
+        notes: row['備考']||'', color:'#6366f1', status:'active',
+        created_at: now, updated_at: now
+      };
+    }).filter(Boolean);
+    lsSave(LS_PROJECTS_PIPELINE, [...existing, ...newItems]);
+    imported = newItems.length;
+
+  } else if (type === 'contractors') {
+    const existing = lsLoad(LS_CONTRACTORS);
+    const newItems = rows.map((row,i) => {
+      if (!row['会社名']) { errors.push((i+1)+'行目: 会社名が空'); return null; }
+      const catRaw = row['工種']||''; const areaRaw = row['対応地域']||'全国';
+      return {
+        id: 'ctr_' + Date.now() + '_' + i, name: row['会社名'],
+        type: row['種別']==='個人'?'individual':'company',
+        category: catRaw ? catRaw.split(/[\/,]/).map(s=>s.trim()).filter(Boolean) : [],
+        contact: row['連絡先']||'', email: row['メール']||'', address:'',
+        area: areaRaw ? areaRaw.split(/[\/,]/).map(s=>s.trim()).filter(Boolean) : ['全国'],
+        note: row['備考']||'', rating:3, status:'active',
+        createdAt: now, updatedAt: now,
+        createdBy: localStorage.getItem('ago_current_user')||'import'
+      };
+    }).filter(Boolean);
+    lsSave(LS_CONTRACTORS, [...existing, ...newItems]);
+    imported = newItems.length;
+
+  } else if (type === 'orders') {
+    const chinaMap = {
+      '未発注':'unordered','発注済':'ordered','生産中':'producing',
+      '出荷待ち':'shipping_prep','輸送中':'shipping','通関中':'customs','到着済':'arrived'
+    };
+    const existing = lsLoad('ago_orders');
+    const maxId = existing.length > 0 ? Math.max(...existing.map(o=>o.id||0)) : 0;
+    const ym = new Date().toISOString().slice(0,7).replace('-','');
+    const newItems = rows.map((row,i) => {
+      if (!row['商品名']) { errors.push((i+1)+'行目: 商品名が空'); return null; }
+      return {
+        id: maxId+i+1, order_code: 'MAT-'+ym+'-'+String(maxId+i+1).padStart(4,'0'),
+        source:'material', product: row['商品名'], qty: parseInt(row['数量'])||1,
+        amount: parseInt((row['金額(円)']||row['金額']||'').replace(/[^\d]/g,''))||0,
+        buyer_note: row['備考']||'',
+        china_status: chinaMap[row['中国ステータス']]||'unordered',
+        arrival_date: row['到着予定日']||null, status:'received',
+        created_at: now, updated_at: now, _logs:[]
+      };
+    }).filter(Boolean);
+    lsSave('ago_orders', [...existing, ...newItems]);
+    imported = newItems.length;
+  }
+
+  closeCsvPreviewModal();
+  let msg = '✅ ' + imported + '件を取り込みました';
+  if (errors.length) msg += '（スキップ ' + errors.length + '件）';
+  showToast(msg);
+  setTimeout(() => location.reload(), 1400);
+}
 </script>
 
 <!-- 図面ビューア -->
@@ -8691,6 +8917,19 @@ function removeContractorFromProject(projectId, contractorId) {
         <div class="pin-key" onclick="loginPinKey('confirm')" style="background:var(--primary);color:#fff;font-size:18px">✓</div>
       </div>
       <button class="btn-secondary" style="width:100%;margin-top:14px;padding:8px" onclick="document.getElementById('login-pin-area').style.display='none';loginSelectedUser=null;">← ユーザー選択に戻る</button>
+    </div>
+  </div>
+</div>
+<!-- CSV Preview Modal -->
+<div class="modal-overlay" id="csv-preview-modal" onclick="if(event.target===this)closeCsvPreviewModal()" style="display:none;align-items:center;justify-content:center">
+  <div class="modal" style="max-width:720px;width:95vw;max-height:90vh;overflow-y:auto">
+    <div class="modal-title" id="csv-preview-title">CSVプレビュー</div>
+    <div id="csv-preview-info" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+    <div id="csv-preview-table" style="overflow-x:auto;max-height:320px;overflow-y:auto;margin-bottom:12px"></div>
+    <div id="csv-preview-error" style="color:var(--red);font-size:12px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-secondary" onclick="closeCsvPreviewModal()">キャンセル</button>
+      <button class="btn-primary" onclick="confirmCsvImport()">✅ 取り込む</button>
     </div>
   </div>
 </div>
