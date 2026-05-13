@@ -1,0 +1,7 @@
+fix: スケジュールタブのタップ・CSVファイル選択のiOS対応
+
+- .tab-btn に touch-action:manipulation 追加（スクロール判定でタップが消えないように）
+- CSVインポートの file input を display:none から position:absolute/opacity:0 に変更
+  （iOS Safariでは display:none の input に label からフォーカスが当たらない問題を修正）
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>

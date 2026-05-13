@@ -51,7 +51,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 /* Tab nav */
 .tab-nav{display:flex;gap:4px;padding:8px 16px 0;border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .tab-nav::-webkit-scrollbar{display:none}
-.tab-btn{background:none;border:none;color:var(--muted);padding:8px 14px;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;flex-shrink:0}
+.tab-btn{background:none;border:none;color:var(--muted);padding:8px 14px;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;flex-shrink:0;touch-action:manipulation}
 .tab-btn:hover{color:var(--text)}
 .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
 /* Stats */
@@ -562,7 +562,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
   <div style="padding:4px 16px 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border)">
     <span style="font-size:12px;color:var(--muted);font-weight:600">📥 CSVで一括取り込み</span>
     <button class="btn-secondary" style="padding:4px 10px;font-size:12px" onclick="downloadCsvTemplate('orders')">📄 テンプレートDL</button>
-    <label class="btn-secondary" style="padding:4px 10px;font-size:12px;cursor:pointer">⬆ 取り込む<input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this,'orders')"></label>
+    <label class="btn-secondary" style="padding:4px 10px;font-size:12px;cursor:pointer;position:relative">⬆ 取り込む<input type="file" accept=".csv" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer" onchange="handleCsvImport(this,'orders')"></label>
   </div>
   <div class="filter-bar">
     <button class="filter-btn active" data-filter="all" id="filter-all" onclick="setFilter(this)">全て</button>
@@ -601,10 +601,10 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
     <span style="font-size:12px;color:var(--muted);font-weight:600">📥 CSVで一括取り込み</span>
     <span style="font-size:11px;color:var(--muted)">🏗 案件:</span>
     <button class="btn-secondary" style="padding:4px 10px;font-size:12px" onclick="downloadCsvTemplate('projects')">📄 テンプレートDL</button>
-    <label class="btn-secondary" style="padding:4px 10px;font-size:12px;cursor:pointer">⬆ 取り込む<input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this,'projects')"></label>
+    <label class="btn-secondary" style="padding:4px 10px;font-size:12px;cursor:pointer;position:relative">⬆ 取り込む<input type="file" accept=".csv" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer" onchange="handleCsvImport(this,'projects')"></label>
     <span style="font-size:11px;color:var(--muted);margin-left:4px">🏢 協力会社:</span>
     <button class="btn-secondary" style="padding:4px 10px;font-size:12px" onclick="downloadCsvTemplate('contractors')">📄 テンプレートDL</button>
-    <label class="btn-secondary" style="padding:4px 10px;font-size:12px;cursor:pointer">⬆ 取り込む<input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this,'contractors')"></label>
+    <label class="btn-secondary" style="padding:4px 10px;font-size:12px;cursor:pointer;position:relative">⬆ 取り込む<input type="file" accept=".csv" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer" onchange="handleCsvImport(this,'contractors')"></label>
   </div>
   <div id="projects-list-body" style="padding:0 16px 100px"></div>
   <div id="projects-detail-body" style="display:none;padding:0 16px 100px"></div>
