@@ -49,8 +49,9 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .search-input:focus{border-color:var(--primary)}
 .search-icon{position:absolute;left:28px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:16px;pointer-events:none}
 /* Tab nav */
-.tab-nav{display:flex;gap:4px;padding:8px 16px 0;border-bottom:1px solid var(--border)}
-.tab-btn{background:none;border:none;color:var(--muted);padding:8px 14px;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
+.tab-nav{display:flex;gap:4px;padding:8px 16px 0;border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tab-nav::-webkit-scrollbar{display:none}
+.tab-btn{background:none;border:none;color:var(--muted);padding:8px 14px;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;flex-shrink:0}
 .tab-btn:hover{color:var(--text)}
 .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
 /* Stats */
@@ -490,34 +491,6 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
       <button class="btn-secondary" style="padding:6px 14px;font-size:12px;color:var(--accent)" onclick="loadDemoData()">🗂 デモデータ投入</button>
     </div>
   </div>
-  <!-- CSVインポート -->
-  <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
-    <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:6px">📥 CSVインポート</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Excelで作ったCSVから一括取り込み。既存データに追加されます。</div>
-    <div style="display:grid;gap:10px">
-      <div>
-        <div style="font-size:12px;font-weight:600;margin-bottom:5px">🏗 案件（施工項目）</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn-secondary" style="padding:5px 12px;font-size:12px" onclick="downloadCsvTemplate('projects')">📄 テンプレートDL</button>
-          <label class="btn-secondary" style="padding:5px 12px;font-size:12px;cursor:pointer">⬆ CSVを取り込む<input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this,'projects')"></label>
-        </div>
-      </div>
-      <div>
-        <div style="font-size:12px;font-weight:600;margin-bottom:5px">🏢 協力会社・職人</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn-secondary" style="padding:5px 12px;font-size:12px" onclick="downloadCsvTemplate('contractors')">📄 テンプレートDL</button>
-          <label class="btn-secondary" style="padding:5px 12px;font-size:12px;cursor:pointer">⬆ CSVを取り込む<input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this,'contractors')"></label>
-        </div>
-      </div>
-      <div>
-        <div style="font-size:12px;font-weight:600;margin-bottom:5px">📦 資材注文</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn-secondary" style="padding:5px 12px;font-size:12px" onclick="downloadCsvTemplate('orders')">📄 テンプレートDL</button>
-          <label class="btn-secondary" style="padding:5px 12px;font-size:12px;cursor:pointer">⬆ CSVを取り込む<input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this,'orders')"></label>
-        </div>
-      </div>
-    </div>
-  </div>
   <!-- パスコード管理 -->
   <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
     <div style="font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px">🔑 スタッフパスコード管理</div>
@@ -586,6 +559,11 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
     <div class="stat-card"><div class="stat-num" id="stat-done">-</div><div class="stat-label" id="stat-done-lbl">完了</div></div>
     <div class="stat-card"><div class="stat-num" id="stat-cancel">-</div><div class="stat-label" id="stat-cancel-lbl">キャンセル</div></div>
   </div>
+  <div style="padding:4px 16px 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border)">
+    <span style="font-size:12px;color:var(--muted);font-weight:600">📥 CSVで一括取り込み</span>
+    <button class="btn-secondary" style="padding:4px 10px;font-size:12px" onclick="downloadCsvTemplate('orders')">📄 テンプレートDL</button>
+    <label class="btn-secondary" style="padding:4px 10px;font-size:12px;cursor:pointer">⬆ 取り込む<input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this,'orders')"></label>
+  </div>
   <div class="filter-bar">
     <button class="filter-btn active" data-filter="all" id="filter-all" onclick="setFilter(this)">全て</button>
     <button class="filter-btn" data-filter="active" id="filter-active" onclick="setFilter(this)">進行中</button>
@@ -618,6 +596,15 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
     <button class="filter-btn" data-pfilter="construction" onclick="setProjFilter(this)">施工中</button>
     <button class="filter-btn" data-pfilter="completed" onclick="setProjFilter(this)">完了</button>
     <button class="filter-btn" data-pfilter="invoiced" onclick="setProjFilter(this)">請求済</button>
+  </div>
+  <div style="padding:4px 16px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border)">
+    <span style="font-size:12px;color:var(--muted);font-weight:600">📥 CSVで一括取り込み</span>
+    <span style="font-size:11px;color:var(--muted)">🏗 案件:</span>
+    <button class="btn-secondary" style="padding:4px 10px;font-size:12px" onclick="downloadCsvTemplate('projects')">📄 テンプレートDL</button>
+    <label class="btn-secondary" style="padding:4px 10px;font-size:12px;cursor:pointer">⬆ 取り込む<input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this,'projects')"></label>
+    <span style="font-size:11px;color:var(--muted);margin-left:4px">🏢 協力会社:</span>
+    <button class="btn-secondary" style="padding:4px 10px;font-size:12px" onclick="downloadCsvTemplate('contractors')">📄 テンプレートDL</button>
+    <label class="btn-secondary" style="padding:4px 10px;font-size:12px;cursor:pointer">⬆ 取り込む<input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this,'contractors')"></label>
   </div>
   <div id="projects-list-body" style="padding:0 16px 100px"></div>
   <div id="projects-detail-body" style="display:none;padding:0 16px 100px"></div>
@@ -937,7 +924,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 </div>
 
 <!-- Master PIN Modal -->
-<div class="modal-overlay" id="pin-modal">
+<div class="modal-overlay" id="pin-modal" style="z-index:10001">
   <div class="modal" style="text-align:center">
     <div class="modal-title">🔐 マスター認証</div>
     <p style="color:var(--muted);font-size:14px;margin-bottom:8px">PINコードを入力してください</p>
@@ -2308,7 +2295,7 @@ function onLogoTap() {
     logoTapCount = 0;
     if (!masterMode) {
       resetPin();
-      showModal('pin-modal');
+      document.getElementById('pin-modal').classList.add('show');
     } else {
       masterMode = false;
       document.getElementById('master-badge').classList.remove('visible');
