@@ -1,7 +1,5 @@
-fix: スケジュールタブのタップ・CSVファイル選択のiOS対応
+feat: 資材注文カードに現場名バッジを追加
 
-- .tab-btn に touch-action:manipulation 追加（スクロール判定でタップが消えないように）
-- CSVインポートの file input を display:none から position:absolute/opacity:0 に変更
-  （iOS Safariでは display:none の input に label からフォーカスが当たらない問題を修正）
+商品名の直下に「🏗 現場名」をバッジ形式で目立つ表示に変更
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>

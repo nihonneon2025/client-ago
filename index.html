@@ -1913,7 +1913,7 @@ function renderOrders() {
     const arrivalInfo = o.arrival_date ? `<span style="font-size:11px;color:var(--muted)">到着: ${o.arrival_date}</span>` : '';
     // 現場リンク
     const projName = o.project_link ? (() => { const p = schProjects.find(x => x.id == o.project_link); return p ? escHtml(p.name) : ''; })() : '';
-    const projInfo = projName ? `<span style="font-size:11px;color:var(--accent)">🏗 ${projName}</span>` : '';
+    const projBadge = projName ? `<div style="margin:4px 0 2px"><span style="display:inline-block;background:rgba(37,99,235,.1);color:var(--accent);border:1px solid rgba(37,99,235,.25);border-radius:20px;padding:3px 10px;font-size:13px;font-weight:600">🏗 ${projName}</span></div>` : '';
     return `
     <div class="${staleClass}" onclick="openDetail(${o.id})">
       ${staleBadge}
@@ -1922,7 +1922,8 @@ function renderOrders() {
         ${csBadge}
       </div>
       <div class="order-product">${escHtml(o.product)}</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0">${arrivalInfo}${projInfo}</div>
+      ${projBadge}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0">${arrivalInfo}</div>
       <div class="order-card-bottom">
         <span class="status-badge" style="background:${s.color}">${s.label}</span>
         <span class="order-meta">${date}</span>
