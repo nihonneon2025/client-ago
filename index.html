@@ -10,8 +10,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0f172a">
+<meta name="robots" content="noindex, nofollow">
 <title>AGO SYSTEM MANAGER | 株式会社AGOグループ</title>
 <link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230f172a'/><text x='50%25' y='50%25' font-family='sans-serif' font-size='14' font-weight='bold' fill='%236366f1' text-anchor='middle' dominant-baseline='central'>A</text></svg>">
 <!-- apple-touch-icon: Phase 6 で AGO 公式ロゴから生成予定 -->
 <style>
 :root{
@@ -4732,9 +4734,60 @@ const LS_SCH_NOTES    = 'ago_sch_notes';
 function lsLoad(key) {
   try { return JSON.parse(localStorage.getItem(key)) || []; } catch(e) { return []; }
 }
+// 全端末で共有するキー一覧（セッション・GPS・ピン等は除外）
+const AGO_SYNC_KEYS = new Set([
+  'ago_orders','ago_invoices','ago_purchase_orders','ago_estimates','ago_expenses',
+  'ago_projects','ago_project_logs','ago_project_checklists','ago_contractors',
+  'ago_sch_entries','ago_sch_projects','ago_sch_notes','ago_project_chats'
+]);
+
+// api.php と必ず同じ値にする（YOUR_SECRET_KEY_HERE を自分のキーに変更）
+const AGO_API_TOKEN = 'system002-od';
+
 function lsSave(key, data) {
-  localStorage.setItem(key, JSON.stringify(data));
+  const json = JSON.stringify(data);
+  localStorage.setItem(key, json);
+  if (AGO_SYNC_KEYS.has(key)) {
+    fetch('api.php', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-AGO-Token': AGO_API_TOKEN},
+      body: JSON.stringify({action:'kv_set', key, value: json})
+    }).catch(() => {});
+  }
 }
+
+async function syncFromServer() {
+  try {
+    const res = await fetch('api.php?action=kv_getAll', {
+      cache: 'no-store',
+      headers: {'X-AGO-Token': AGO_API_TOKEN}
+    });
+    if (!res.ok) return false;
+    const json = await res.json();
+    if (!json.success) return false;
+    for (const [key, value] of Object.entries(json.data)) {
+      if (value && AGO_SYNC_KEYS.has(key)) {
+        localStorage.setItem(key, value);
+      }
+    }
+    return true;
+  } catch(e) { return false; }
+}
+
+// 現在アクティブなタブを再描画
+function renderCurrentTab() {
+  const tab = currentTab || 'orders';
+  if      (tab === 'orders')       loadOrders();
+  else if (tab === 'projects')     initProjectsTab();
+  else if (tab === 'customers')    renderCustomerView();
+  else if (tab === 'monthly')      renderMonthlyView();
+  else if (tab === 'schedule')     initScheduleView();
+  else if (tab === 'attendance')   initAttendanceView();
+  else if (tab === 'instructions') initInstructionsView();
+  else if (tab === 'accounting')   initAccountingView();
+  else                             loadOrders();
+}
+
 function lsNextId(arr) {
   return arr.length === 0 ? 1 : Math.max(...arr.map(x => x.id || 0)) + 1;
 }
@@ -6438,8 +6491,24 @@ function importAllData(inputEl) {
 
 // ── 初期化 ───────────────────────────────────────────────────
 setLang(lang);
-loadOrders();
-setInterval(loadOrders, 30000);
+
+// サーバー同期してから表示（api.php がない場合はlocalStorageのまま動作）
+(async () => {
+  await syncFromServer();
+  loadOrders();
+})();
+
+// 30秒ごとに全端末のデータを同期して現在タブを再描画
+setInterval(async () => {
+  await syncFromServer();
+  renderCurrentTab();
+}, 30000);
+
+// 画面がフォーカスされたとき（スマホでアプリ復帰など）も同期
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) syncFromServer().then(renderCurrentTab);
+});
+
 registerSW();
 // ページを開くたびに必ずログイン画面を表示（モーダルHTMLはscript後に記述されるためDOMContentLoaded待ち）
 localStorage.removeItem('ago_current_user');

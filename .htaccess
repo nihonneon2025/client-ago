@@ -1,0 +1,24 @@
+Options -Indexes
+
+# 検索エンジンにインデックスさせない
+Header always set X-Robots-Tag "noindex, nofollow"
+
+# DBファイルへの直接アクセスを禁止
+<FilesMatch "\.(db|db-wal|db-shm|bat|php\.bak)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Basic認証（Xserverのアクセス制限機能で設定してください）
+# サーバーパネル → アクセス制限 → system002-od.ordermade-neon.com を選択して設定
+
+# PWAファイルはBasic認証なしでアクセス可能にする（スマホのホーム画面追加に必要）
+<Files "manifest.json">
+    Require all granted
+</Files>
+<Files "sw.js">
+    Require all granted
+</Files>
+<Files "favicon.ico">
+    Require all granted
+</Files>
