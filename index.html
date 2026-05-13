@@ -210,7 +210,11 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .sch-gantt th{background:var(--surface);border:1px solid var(--border);padding:8px 6px;font-size:12px;color:var(--muted);font-weight:600;text-align:center}
 .sch-gantt th.today{background:var(--primary);color:#fff}
 .sch-gantt td{border:1px solid var(--border);padding:4px;vertical-align:top;min-width:80px;height:48px}
-.sch-gantt .staff-name{background:var(--surface);font-weight:600;font-size:13px;color:var(--text);padding:8px;min-width:90px}
+.sch-gantt .staff-name{background:var(--surface);font-weight:600;font-size:13px;color:var(--text);padding:8px;min-width:90px;cursor:grab}
+.sch-drag-handle{color:var(--muted);margin-right:4px;font-size:15px;vertical-align:middle}
+.sch-gantt tr.sch-row-dragging{opacity:.35}
+.sch-gantt tr.sch-drop-above td{border-top:2px solid var(--accent)!important}
+.sch-gantt tr.sch-drop-below td{border-bottom:2px solid var(--accent)!important}
 .sch-cell-entry{display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;color:#fff;margin:1px;cursor:pointer;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;transition:opacity .2s}
 .sch-cell-entry:hover{opacity:.8}
 /* Project list */
@@ -4741,6 +4745,9 @@ let currentSchSub = 'overview';
 let schWeekStart = getMonday(new Date());
 let schEntries = [];
 let schProjects = [];
+let schStaffOrder = lsLoad('ago_staff_order') || [];
+let ganttViewMode = lsLoad('ago_gantt_mode') || 'daily';
+let schDragSrcRow = null;
 
 // ── localStorage CRUD ─────────────────────────────────────────
 const LS_SCH_ENTRIES  = 'ago_sch_entries';
@@ -5084,19 +5091,110 @@ function loadProjects() {
   updateProjectDropdown();
 }
 
+// ── スタッフ並び順ヘルパー ────────────────────────────────────
+function getOrderedStaff() {
+  const list = Object.entries(USERS).filter(([id]) => {
+    const cfg = typeof APP_CONFIG !== 'undefined' ? APP_CONFIG.users[id] : null;
+    return cfg && cfg.role !== 'china';
+  });
+  if (!schStaffOrder.length) return list;
+  return [...list].sort(([a], [b]) => {
+    const ai = schStaffOrder.indexOf(a);
+    const bi = schStaffOrder.indexOf(b);
+    return (ai < 0 ? 9999 : ai) - (bi < 0 ? 9999 : bi);
+  });
+}
+
+// ── 表示モード切替 ────────────────────────────────────────────
+function setGanttMode(mode) {
+  ganttViewMode = mode;
+  lsSave('ago_gantt_mode', mode);
+  if (mode === 'hourly') switchSchSub('timeline');
+  else switchSchSub('overview');
+}
+
+// ── ガント D&D（PC：HTML5 drag）─────────────────────────────
+function schRowDragStart(e) {
+  schDragSrcRow = e.currentTarget;
+  e.currentTarget.classList.add('sch-row-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function schRowDragOver(e) {
+  e.preventDefault();
+  if (!schDragSrcRow || e.currentTarget === schDragSrcRow) return;
+  document.querySelectorAll('.sch-gantt tbody tr').forEach(r => r.classList.remove('sch-drop-above','sch-drop-below'));
+  const rect = e.currentTarget.getBoundingClientRect();
+  e.currentTarget.classList.add(e.clientY < rect.top + rect.height / 2 ? 'sch-drop-above' : 'sch-drop-below');
+}
+function schRowDrop(e) {
+  e.preventDefault();
+  if (!schDragSrcRow || e.currentTarget === schDragSrcRow) return;
+  const tbody = e.currentTarget.closest('tbody');
+  const rect = e.currentTarget.getBoundingClientRect();
+  if (e.clientY < rect.top + rect.height / 2) tbody.insertBefore(schDragSrcRow, e.currentTarget);
+  else tbody.insertBefore(schDragSrcRow, e.currentTarget.nextSibling);
+  schStaffOrder = [...tbody.querySelectorAll('tr[data-uid]')].map(r => r.dataset.uid);
+  lsSave('ago_staff_order', schStaffOrder);
+  document.querySelectorAll('.sch-gantt tbody tr').forEach(r => r.classList.remove('sch-row-dragging','sch-drop-above','sch-drop-below'));
+}
+function schRowDragEnd() {
+  document.querySelectorAll('.sch-gantt tbody tr').forEach(r => r.classList.remove('sch-row-dragging','sch-drop-above','sch-drop-below'));
+}
+
+// ── ガント D&D（スマホ：touch）───────────────────────────────
+function initGanttTouchDnd(tbody) {
+  let srcRow = null, lastOver = null;
+  tbody.querySelectorAll('.sch-drag-handle').forEach(h => {
+    h.addEventListener('touchstart', function(e) {
+      srcRow = this.closest('tr');
+      srcRow.classList.add('sch-row-dragging');
+      e.preventDefault();
+    }, {passive:false});
+  });
+  tbody.addEventListener('touchmove', function(e) {
+    if (!srcRow) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const row = el && el.closest('tr[data-uid]');
+    if (lastOver && lastOver !== row) lastOver.classList.remove('sch-drop-above','sch-drop-below');
+    if (row && row !== srcRow) {
+      const rect = row.getBoundingClientRect();
+      row.classList.add(t.clientY < rect.top + rect.height / 2 ? 'sch-drop-above' : 'sch-drop-below');
+      lastOver = row;
+    }
+  }, {passive:false});
+  tbody.addEventListener('touchend', function(e) {
+    if (!srcRow) return;
+    const t = e.changedTouches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const row = el && el.closest('tr[data-uid]');
+    if (row && row !== srcRow) {
+      const rect = row.getBoundingClientRect();
+      if (t.clientY < rect.top + rect.height / 2) tbody.insertBefore(srcRow, row);
+      else tbody.insertBefore(srcRow, row.nextSibling);
+      schStaffOrder = [...tbody.querySelectorAll('tr[data-uid]')].map(r => r.dataset.uid);
+      lsSave('ago_staff_order', schStaffOrder);
+    }
+    tbody.querySelectorAll('tr').forEach(r => r.classList.remove('sch-row-dragging','sch-drop-above','sch-drop-below'));
+    srcRow = null; lastOver = null;
+  });
+}
+
 // ── 全体ビュー（ガントチャート風）─────────────────────────────
 function renderOverview() {
   const container = document.getElementById('sch-overview');
   const dates = getWeekDates();
   const today = formatDate(new Date());
+  const staffList = getOrderedStaff();
 
-  // スタッフリスト（field + office + master）
-  const staffList = Object.entries(USERS).filter(([id]) => {
-    const cfg = (typeof APP_CONFIG !== 'undefined') ? APP_CONFIG.users[id] : null;
-    return cfg && cfg.role !== 'china';
-  });
+  // 表示切替トグル
+  let html = `<div style="display:flex;gap:6px;padding:6px 0 8px">
+    <button style="background:var(--accent);border:1px solid var(--accent);color:#fff;padding:4px 16px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;touch-action:manipulation" onclick="setGanttMode('daily')">📅 日毎</button>
+    <button style="background:none;border:1px solid var(--border);color:var(--muted);padding:4px 16px;border-radius:16px;font-size:12px;cursor:pointer;touch-action:manipulation" onclick="setGanttMode('hourly')">⏱ 時間毎</button>
+  </div>`;
 
-  let html = '<table><thead><tr><th>スタッフ</th>';
+  html += '<table><thead><tr><th>スタッフ</th>';
   dates.forEach(d => {
     const cls = formatDate(d) === today ? ' class="today"' : '';
     html += `<th${cls}>${formatDateShort(d)}</th>`;
@@ -5104,7 +5202,8 @@ function renderOverview() {
   html += '</tr></thead><tbody>';
 
   staffList.forEach(([userId, userName]) => {
-    html += `<tr><td class="staff-name">${escHtml(userName)}</td>`;
+    html += `<tr draggable="true" data-uid="${userId}" ondragstart="schRowDragStart(event)" ondragover="schRowDragOver(event)" ondrop="schRowDrop(event)" ondragend="schRowDragEnd()">`;
+    html += `<td class="staff-name"><span class="sch-drag-handle" title="ドラッグして並び替え">⠿</span>${escHtml(userName)}</td>`;
     dates.forEach(d => {
       const dateStr = formatDate(d);
       const entries = schEntries.filter(e => e.date === dateStr && e.staff && e.staff.includes(userId));
@@ -5122,6 +5221,10 @@ function renderOverview() {
 
   html += '</tbody></table>';
   container.innerHTML = html;
+
+  // スマホ touch D&D 初期化
+  const tbody = container.querySelector('tbody');
+  if (tbody) initGanttTouchDnd(tbody);
 }
 
 // ── タイムラインビュー（24時間横軸チャート）────────────────────
@@ -5152,15 +5255,18 @@ function renderTimeline() {
   // データ取得（localStorage版・当日分フィルタ）
   const entries = lsLoad(LS_SCH_ENTRIES).filter(e => e.date === dateStr);
 
-  const staffList = Object.entries(USERS).filter(([id]) => {
-    const cfg = (typeof APP_CONFIG !== 'undefined') ? APP_CONFIG.users[id] : null;
-    return cfg && cfg.role !== 'china';
-  });
+  const staffList = getOrderedStaff();
 
   const container = document.getElementById('tl-chart');
 
+  // 表示切替トグル
+  let html = `<div style="display:flex;gap:6px;padding:0 0 8px">
+    <button style="background:none;border:1px solid var(--border);color:var(--muted);padding:4px 16px;border-radius:16px;font-size:12px;cursor:pointer;touch-action:manipulation" onclick="setGanttMode('daily')">📅 日毎</button>
+    <button style="background:var(--accent);border:1px solid var(--accent);color:#fff;padding:4px 16px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;touch-action:manipulation" onclick="setGanttMode('hourly')">⏱ 時間毎</button>
+  </div>`;
+
   // 時間ラベル行
-  let html = '<div class="tl-hour-labels">';
+  html += '<div class="tl-hour-labels">';
   for (let h = TL_START_HOUR; h < TL_END_HOUR; h++) {
     html += `<span class="tl-hour-lbl">${h}:00</span>`;
   }
@@ -5170,8 +5276,8 @@ function renderTimeline() {
   staffList.forEach(([userId, userName]) => {
     const userEntries = entries.filter(e => e.staff && e.staff.includes(userId));
 
-    html += `<div class="tl-row">`;
-    html += `<div class="tl-row-name">${escHtml(userName)}</div>`;
+    html += `<div class="tl-row" data-uid="${userId}">`;
+    html += `<div class="tl-row-name" style="cursor:grab" title="ドラッグして並び替え"><span style="color:var(--muted);margin-right:4px;font-size:13px">⠿</span>${escHtml(userName)}</div>`;
     html += `<div class="tl-row-bar">`;
 
     // 時間グリッド線
@@ -5217,6 +5323,43 @@ function renderTimeline() {
   });
 
   container.innerHTML = html;
+
+  // タイムライン touch D&D
+  initTimelineTouchDnd(container);
+}
+
+function initTimelineTouchDnd(container) {
+  let srcRow = null, lastOver = null;
+  container.querySelectorAll('.tl-row-name').forEach(h => {
+    h.addEventListener('touchstart', function(e) {
+      srcRow = this.closest('.tl-row');
+      srcRow.style.opacity = '0.4';
+      e.preventDefault();
+    }, {passive:false});
+  });
+  container.addEventListener('touchmove', function(e) {
+    if (!srcRow) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const row = el && el.closest('.tl-row[data-uid]');
+    if (lastOver && lastOver !== row) lastOver.style.borderTop = '';
+    if (row && row !== srcRow) { row.style.borderTop = '2px solid var(--accent)'; lastOver = row; }
+  }, {passive:false});
+  container.addEventListener('touchend', function(e) {
+    if (!srcRow) return;
+    const t = e.changedTouches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const row = el && el.closest('.tl-row[data-uid]');
+    if (row && row !== srcRow) {
+      container.insertBefore(srcRow, row);
+      schStaffOrder = [...container.querySelectorAll('.tl-row[data-uid]')].map(r => r.dataset.uid);
+      lsSave('ago_staff_order', schStaffOrder);
+    }
+    srcRow.style.opacity = '';
+    if (lastOver) lastOver.style.borderTop = '';
+    srcRow = null; lastOver = null;
+  });
 }
 
 // ── 現場ビュー ──────────────────────────────────────────────
