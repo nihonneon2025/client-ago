@@ -5093,12 +5093,18 @@ function loadProjects() {
 
 // ── スタッフ並び順ヘルパー ────────────────────────────────────
 function getOrderedStaff() {
-  const list = Object.entries(USERS).filter(([id]) => {
+  const staffEntries = Object.entries(USERS).filter(([id]) => {
     const cfg = typeof APP_CONFIG !== 'undefined' ? APP_CONFIG.users[id] : null;
     return cfg && cfg.role !== 'china';
-  });
-  if (!schStaffOrder.length) return list;
-  return [...list].sort(([a], [b]) => {
+  }).map(([id, name]) => [id, name, 'staff']);
+
+  const contractorEntries = lsContractors()
+    .filter(c => c.status !== 'inactive')
+    .map(c => [c.id, c.name || '（名前なし）', 'contractor']);
+
+  const combined = [...staffEntries, ...contractorEntries];
+  if (!schStaffOrder.length) return combined;
+  return [...combined].sort(([a], [b]) => {
     const ai = schStaffOrder.indexOf(a);
     const bi = schStaffOrder.indexOf(b);
     return (ai < 0 ? 9999 : ai) - (bi < 0 ? 9999 : bi);
@@ -5201,9 +5207,12 @@ function renderOverview() {
   });
   html += '</tr></thead><tbody>';
 
-  staffList.forEach(([userId, userName]) => {
-    html += `<tr draggable="true" data-uid="${userId}" ondragstart="schRowDragStart(event)" ondragover="schRowDragOver(event)" ondrop="schRowDrop(event)" ondragend="schRowDragEnd()">`;
-    html += `<td class="staff-name"><span class="sch-drag-handle" title="ドラッグして並び替え">⠿</span>${escHtml(userName)}</td>`;
+  staffList.forEach(([userId, userName, rowType]) => {
+    const isContractor = rowType === 'contractor';
+    const rowStyle = isContractor ? ' style="background:rgba(245,158,11,.04)"' : '';
+    html += `<tr draggable="true" data-uid="${userId}" ondragstart="schRowDragStart(event)" ondragover="schRowDragOver(event)" ondrop="schRowDrop(event)" ondragend="schRowDragEnd()"${rowStyle}>`;
+    const icon = isContractor ? '<span style="font-size:11px;margin-right:3px;opacity:.7">🏢</span>' : '';
+    html += `<td class="staff-name"><span class="sch-drag-handle" title="ドラッグして並び替え">⠿</span>${icon}${escHtml(userName)}</td>`;
     dates.forEach(d => {
       const dateStr = formatDate(d);
       const entries = schEntries.filter(e => e.date === dateStr && e.staff && e.staff.includes(userId));
