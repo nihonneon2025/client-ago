@@ -3,9 +3,8 @@
  * オフライン対応とキャッシュ管理
  */
 
-const CACHE_NAME = 'ago-system-v3';
+const CACHE_NAME = 'ago-system-v4';
 const STATIC_ASSETS = [
-  'index.html',
   'config.js',
   'manifest.json',
 ];
@@ -44,7 +43,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 静的ファイル → キャッシュファースト、なければネットワーク
+  // index.html → ネットワーク優先（常に最新を取得・失敗時のみキャッシュ）
+  if (url.pathname.endsWith('index.html') || url.pathname.endsWith('/')) {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // その他の静的ファイル → キャッシュファースト
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
