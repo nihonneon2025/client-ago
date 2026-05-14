@@ -255,7 +255,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .tl-date-nav button:hover{background:var(--primary);border-color:var(--primary)}
 .tl-date-label{font-size:14px;font-weight:600;color:var(--accent);min-width:140px;text-align:center}
 .tl-row{display:flex;align-items:stretch;margin-bottom:2px;min-height:36px}
-.tl-row-name{min-width:80px;max-width:80px;font-size:12px;font-weight:600;color:var(--text);padding:8px 4px 8px 0;display:flex;align-items:center;flex-shrink:0}
+.tl-row-name{min-width:80px;max-width:80px;font-size:12px;font-weight:600;color:var(--text);padding:8px 4px 8px 0;display:flex;align-items:center;flex-shrink:0;position:sticky;left:0;z-index:3;background:var(--bg)}
 .tl-row-bar{flex:1;position:relative;background:var(--surface);border:1px solid var(--border);border-radius:4px;min-width:0}
 .tl-hour-grid{position:absolute;inset:0;display:flex}
 .tl-hour-line{flex:1;border-right:1px solid var(--border)}
@@ -5279,6 +5279,9 @@ function renderTimeline() {
     <button style="background:var(--accent);border:1px solid var(--accent);color:#fff;padding:4px 16px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;touch-action:manipulation" onclick="setGanttMode('hourly')">⏱ 時間毎</button>
   </div>`;
 
+  // スマホでの横スクロール用 min-width ラッパー（24時間×40px=960px確保）
+  html += '<div style="min-width:960px">';
+
   // 時間ラベル行
   html += '<div class="tl-hour-labels">';
   for (let h = TL_START_HOUR; h < TL_END_HOUR; h++) {
@@ -5354,6 +5357,8 @@ function renderTimeline() {
 
     html += '</div></div>'; // tl-row-bar, tl-row
   });
+
+  html += '</div>'; // min-width ラッパー閉じ
 
   container.innerHTML = html;
 
