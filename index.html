@@ -194,7 +194,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);color:var(--text);padding:12px 20px;border-radius:10px;font-size:14px;z-index:999;opacity:0;transition:opacity .3s;box-shadow:0 4px 20px rgba(0,0,0,.3);white-space:nowrap}
 .toast.show{opacity:1}
 /* ═══ Schedule ═══ */
-.sch-sub-nav{display:flex;gap:4px;padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+.sch-sub-nav{display:flex;gap:4px;padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch}
 .sch-sub-btn{background:none;border:none;color:var(--muted);padding:6px 14px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
 .sch-sub-btn:hover{color:var(--text)}
 .sch-sub-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
@@ -249,7 +249,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .color-opt{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .2s}
 .color-opt:hover,.color-opt.selected{border-color:#fff;transform:scale(1.15)}
 /* ═══ Timeline Chart ═══ */
-.tl-chart{padding:0 16px 100px;overflow-x:auto}
+.tl-chart{padding:0 16px 100px}
 .tl-date-nav{display:flex;align-items:center;gap:8px;padding:0 16px 8px}
 .tl-date-nav button{background:var(--card);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px}
 .tl-date-nav button:hover{background:var(--primary);border-color:var(--primary)}
@@ -5279,8 +5279,8 @@ function renderTimeline() {
     <button style="background:var(--accent);border:1px solid var(--accent);color:#fff;padding:4px 16px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;touch-action:manipulation" onclick="setGanttMode('hourly')">⏱ 時間毎</button>
   </div>`;
 
-  // スマホでの横スクロール用 min-width ラッパー（24時間×40px=960px確保）
-  html += '<div style="min-width:960px">';
+  // スマホ横スクロール: 明示的スクロールコンテナ＋1時間60px×24h=1440px確保
+  html += '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><div style="min-width:1440px">';
 
   // 時間ラベル行
   html += '<div class="tl-hour-labels">';
@@ -5358,7 +5358,7 @@ function renderTimeline() {
     html += '</div></div>'; // tl-row-bar, tl-row
   });
 
-  html += '</div>'; // min-width ラッパー閉じ
+  html += '</div></div>'; // min-width + scroll ラッパー閉じ
 
   container.innerHTML = html;
 
