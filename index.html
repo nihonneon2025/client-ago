@@ -6779,10 +6779,14 @@ document.addEventListener('visibilitychange', () => {
 });
 
 registerSW();
-// ページを開くたびに必ずログイン画面を表示（モーダルHTMLはscript後に記述されるためDOMContentLoaded待ち）
-localStorage.removeItem('ago_current_user');
+// 同じタブのリロードはセッション継続・新しいタブ/ウィンドウは再ログイン
 document.addEventListener('DOMContentLoaded', function() {
-  showLoginModal();
+  if (sessionStorage.getItem('ago_authenticated') === 'true' && localStorage.getItem('ago_current_user')) {
+    applyFeatureVisibility();
+  } else {
+    localStorage.removeItem('ago_current_user');
+    showLoginModal();
+  }
 });
 
 // 入力フィールド外でのBackspace=ブラウザ戻るを防止
