@@ -2689,6 +2689,11 @@ function setProjFilter(btn) {
 }
 
 function renderProjectsTab() {
+  // 詳細ページ表示中は一覧に戻さず詳細を再描画
+  if (currentPipelineProjectId !== null) {
+    renderPipelineDetail(currentPipelineProjectId);
+    return;
+  }
   const listBody = document.getElementById('projects-list-body');
   const detailBody = document.getElementById('projects-detail-body');
   detailBody.style.display = 'none';
