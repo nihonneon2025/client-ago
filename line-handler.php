@@ -26,6 +26,13 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     $orders    = json_decode(ago_kv_get('ago_orders')          ?? '[]', true) ?: [];
     $schedule  = json_decode(ago_kv_get('ago_kanno_schedule') ?? '{}', true) ?: [];
 
+    // 確認待ちアクション（line-alert.phpが生成・菅野さんの返答待ち）
+    $pending_raw  = ago_kv_get('ago_pending_actions');
+    $pending_data = $pending_raw ? json_decode($pending_raw, true) : null;
+    if ($pending_data && ($pending_data['expires'] ?? '') < date('Y-m-d')) {
+        $pending_data = null; // 期限切れ
+    }
+
     // ── 3. ユーザー別会話履歴（最新10往復） ────────────────────────
     $conv_key  = 'ago_line_conv_' . $userId;
     $conv_hist = json_decode(ago_kv_get($conv_key) ?? '[]', true) ?: [];
@@ -80,6 +87,16 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     }
     $schedule_text = $sched_lines ? implode("\n", $sched_lines) : '（未登録）';
 
+    // 確認待ちアクションのテキスト生成
+    $pending_text = '（なし）';
+    if ($pending_data && !empty($pending_data['actions'])) {
+        $pending_lines = ['生成: ' . $pending_data['generated_at'] . ' / 有効期限: ' . $pending_data['expires']];
+        foreach ($pending_data['actions'] as $pa) {
+            $pending_lines[] = "【{$pa['no']}】{$pa['label']}（type={$pa['type']}, value={$pa['value']}, id={$pa['id']}）";
+        }
+        $pending_text = implode("\n", $pending_lines);
+    }
+
     // 資材注文サマリー（進行中のみ）
     $order_list = [];
     foreach (array_slice($orders, 0, 40) as $o) {
@@ -130,6 +147,9 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 ## 菅野さんのスケジュール（今日〜3日）
 {$schedule_text}
 
+## 確認待ちアクション（朝夕の自動通知で菅野さんに確認を求めたもの）
+{$pending_text}
+
 ## 資材注文データ（進行中のみ）
 {$orders_json}
 
@@ -167,6 +187,7 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     // {"type":"register_name","name":"登録する名前"}
     // {"type":"set_schedule","date":"2026-05-17","entries":[{"time":"10:00","desc":"田中建設の現場"},{"time":"14:00","desc":"打ち合わせ"}]}
     // {"type":"clear_schedule","date":"2026-05-17"}
+    // {"type":"confirm_pending_actions","confirmed":[1,3],"declined":[2]}  // 確認待ちを承認/却下して即実行
   ]
 }
 
@@ -181,6 +202,9 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 - 「明日は〇〇の現場」「今日の午後から打ち合わせ」などはset_scheduleで保存する
 - 日付が省略された場合は文脈から推定（「明日」→ tomorrow の日付）
 - 「今日の予定は？」「今週どうだっけ？」はスケジュールデータを参照してreplyに書く
+- 「確認待ちアクション」がある状態で菅野さんが「【1】はい」「【2】まだ」のように返答したら confirm_pending_actions を使う
+- 「全部はい」「全部OK」→ 全番号を confirmed に。「全部まだ」→ 全番号を declined に
+- 承認した番号の実行結果をreplyで伝える（例:「【1】田中建設の資材を配送完了に更新しました」）
 SYS;
 
     // ── 6. Claude API呼び出し ───────────────────────────────────────
@@ -395,6 +419,67 @@ function execute_action($action, $userId, $users_map, $ts) {
                 'source'       => 'line',
             ]);
             ago_kv_set('ago_purchase_orders', json_encode($pos, JSON_UNESCAPED_UNICODE));
+            break;
+
+        case 'confirm_pending_actions':
+            $confirmed = $action['confirmed'] ?? [];
+            if (!$confirmed) break;
+
+            $praw = ago_kv_get('ago_pending_actions');
+            if (!$praw) break;
+            $pdata = json_decode($praw, true);
+            if (!$pdata || empty($pdata['actions'])) break;
+
+            $executed_nos = [];
+            foreach ($pdata['actions'] as $pa) {
+                if (!in_array($pa['no'], $confirmed)) continue;
+
+                if ($pa['type'] === 'update_order_status') {
+                    $oid    = (int)$pa['id'];
+                    $status = $pa['value'];
+                    $ords   = json_decode(ago_kv_get('ago_orders') ?? '[]', true) ?: [];
+                    foreach ($ords as &$o) {
+                        if ($o['id'] == $oid) {
+                            $o['status']     = $status;
+                            $o['updated_at'] = $ts;
+                            $o['_logs'][]    = ['status' => $status, 'updated_by' => 'LINE_AI(菅野さん承認)', 'created_at' => $ts, 'note' => ''];
+                            break;
+                        }
+                    }
+                    unset($o);
+                    ago_kv_set('ago_orders', json_encode($ords, JSON_UNESCAPED_UNICODE));
+
+                } elseif ($pa['type'] === 'update_phase') {
+                    $pid   = (int)$pa['id'];
+                    $phase = $pa['value'];
+                    $projs = json_decode(ago_kv_get('ago_projects') ?? '[]', true) ?: [];
+                    $old   = '';
+                    foreach ($projs as &$p) {
+                        if ($p['id'] == $pid) {
+                            $old = $p['phase'] ?? '';
+                            $p['phase']      = $phase;
+                            $p['updated_at'] = $ts;
+                            break;
+                        }
+                    }
+                    unset($p);
+                    ago_kv_set('ago_projects', json_encode($projs, JSON_UNESCAPED_UNICODE));
+                    ago_project_log($pid, 'LINE_AI', "フェーズ変更(菅野さん承認): {$old} → {$phase}", $ts);
+                }
+
+                $executed_nos[] = $pa['no'];
+            }
+
+            // 実行済みを pending から除去（残りがあれば保持・なければクリア）
+            if ($executed_nos) {
+                $remaining = array_values(array_filter($pdata['actions'], fn($a) => !in_array($a['no'], $executed_nos)));
+                if ($remaining) {
+                    $pdata['actions'] = $remaining;
+                    ago_kv_set('ago_pending_actions', json_encode($pdata, JSON_UNESCAPED_UNICODE));
+                } else {
+                    ago_kv_set('ago_pending_actions', '');
+                }
+            }
             break;
     }
 }
