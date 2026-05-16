@@ -24,6 +24,7 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     $invoices  = json_decode(ago_kv_get('ago_invoices')        ?? '[]', true) ?: [];
     $pos       = json_decode(ago_kv_get('ago_purchase_orders') ?? '[]', true) ?: [];
     $orders    = json_decode(ago_kv_get('ago_orders')          ?? '[]', true) ?: [];
+    $schedule  = json_decode(ago_kv_get('ago_kanno_schedule') ?? '{}', true) ?: [];
 
     // ── 3. ユーザー別会話履歴（最新10往復） ────────────────────────
     $conv_key  = 'ago_line_conv_' . $userId;
@@ -64,6 +65,20 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 
         $proj_list[] = $entry;
     }
+
+    // 菅野さんのスケジュール（今日〜3日分）
+    $sched_lines = [];
+    for ($i = 0; $i <= 3; $i++) {
+        $d = date('Y-m-d', strtotime("+{$i} days"));
+        if (!empty($schedule[$d])) {
+            $label = $i === 0 ? '今日' : ($i === 1 ? '明日' : date('n/j', strtotime($d)));
+            foreach ($schedule[$d] as $entry) {
+                $t = $entry['time'] ?? '';
+                $sched_lines[] = "{$label}" . ($t ? " {$t}" : '') . ": " . ($entry['desc'] ?? '');
+            }
+        }
+    }
+    $schedule_text = $sched_lines ? implode("\n", $sched_lines) : '（未登録）';
 
     // 資材注文サマリー（進行中のみ）
     $order_list = [];
@@ -112,6 +127,9 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 ## 現在の業務データ（書類URLつき）
 {$data_json}
 
+## 菅野さんのスケジュール（今日〜3日）
+{$schedule_text}
+
 ## 資材注文データ（進行中のみ）
 {$orders_json}
 
@@ -133,6 +151,7 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 - 複数案件・複数書類を一括処理（「A社B社C社の請求書URL」など）
 - 売上・進行状況のサマリー回答
 - 送信者の名前登録（「私は菅野です」→ 以後その名前で呼ぶ）
+- スケジュール登録・確認（「明日は田中建設の現場」「今週の予定は？」など）
 
 ## 返答フォーマット（JSONのみ・前後に余計なテキスト不要）
 {
@@ -146,6 +165,8 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     // {"type":"create_invoice","project_id":123,"client_name":"顧客名","items":[{"description":"品名","qty":1,"unit":"式","unit_price":1000000}]}
     // {"type":"create_purchase_order","project_id":123,"client_name":"発注先","items":[{"description":"品名","qty":1,"unit":"式","unit_price":500000}]}
     // {"type":"register_name","name":"登録する名前"}
+    // {"type":"set_schedule","date":"2026-05-17","entries":[{"time":"10:00","desc":"田中建設の現場"},{"time":"14:00","desc":"打ち合わせ"}]}
+    // {"type":"clear_schedule","date":"2026-05-17"}
   ]
 }
 
@@ -157,6 +178,9 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 - 「届いた」「来た」→ delivered、「配送中」→ in_transit、「工場確認」→ factory_confirmed など文脈から推定
 - 明細が不明な場合は内容・金額から合理的に推測して生成
 - 対象が複数あって特定できない場合は選択肢を返してユーザーに確認する
+- 「明日は〇〇の現場」「今日の午後から打ち合わせ」などはset_scheduleで保存する
+- 日付が省略された場合は文脈から推定（「明日」→ tomorrow の日付）
+- 「今日の予定は？」「今週どうだっけ？」はスケジュールデータを参照してreplyに書く
 SYS;
 
     // ── 6. Claude API呼び出し ───────────────────────────────────────
@@ -217,6 +241,24 @@ function execute_action($action, $userId, $users_map, $ts) {
             }
             unset($o);
             ago_kv_set('ago_orders', json_encode($orders, JSON_UNESCAPED_UNICODE));
+            break;
+
+        case 'set_schedule':
+            $date    = $action['date'] ?? date('Y-m-d');
+            $entries = $action['entries'] ?? [];
+            $sched   = json_decode(ago_kv_get('ago_kanno_schedule') ?? '{}', true) ?: [];
+            $sched[$date] = $entries;
+            // 過去分は削除（1日前より古いものは自動削除）
+            $cutoff = date('Y-m-d', strtotime('-1 day'));
+            foreach (array_keys($sched) as $d) { if ($d < $cutoff) unset($sched[$d]); }
+            ago_kv_set('ago_kanno_schedule', json_encode($sched, JSON_UNESCAPED_UNICODE));
+            break;
+
+        case 'clear_schedule':
+            $date  = $action['date'] ?? date('Y-m-d');
+            $sched = json_decode(ago_kv_get('ago_kanno_schedule') ?? '{}', true) ?: [];
+            unset($sched[$date]);
+            ago_kv_set('ago_kanno_schedule', json_encode($sched, JSON_UNESCAPED_UNICODE));
             break;
 
         case 'register_name':
