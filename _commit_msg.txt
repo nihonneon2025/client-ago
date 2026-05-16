@@ -1,7 +1,7 @@
-feat: ガントチャートに日毎/時間毎トグルとスタッフD&D並び替えを追加
+ci: GitHub Actions FTP自動デプロイ設定を追加
 
-- 全体ビュー・タイムラインビューに日毎/時間毎の切替ボタンを追加
-- スタッフ行をドラッグ（PC）またはタッチドラッグ（スマホ）で上下に並び替え可能
-- 並び順は localStorage（ago_staff_order）に保存・次回も維持
+- push to main で Xserver へ FTP 自動デプロイ
+- 内部ドキュメント・バックアップ等はデプロイ除外
+- FTP認証情報は GitHub Secrets（FTP_SERVER/FTP_USERNAME/FTP_PASSWORD）で管理
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
