@@ -492,6 +492,11 @@ body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!i
 .card-drag-over{outline:2px dashed var(--primary);outline-offset:3px;border-radius:12px}
 .proj-pipeline-card[draggable=true],.order-card[draggable=true]{cursor:grab}
 .proj-pipeline-card[draggable=true]:active,.order-card[draggable=true]:active{cursor:grabbing}
+/* ═══ タブ・フィルターD&D ═══ */
+.tab-btn[draggable=true],.filter-btn[draggable=true]{cursor:grab}
+.tab-btn.tab-dragging,.filter-btn.tab-dragging{opacity:.35}
+.tab-btn.tab-drag-before,.filter-btn.tab-drag-before{box-shadow:-3px 0 0 0 var(--primary)!important}
+.tab-btn.tab-drag-after,.filter-btn.tab-drag-after{box-shadow:3px 0 0 0 var(--primary)!important}
 /* ═══ タブ折りたたみ ═══ */
 .tab-collapse-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:4px 8px;line-height:1;flex-shrink:0;transition:color .2s}
 .tab-collapse-btn:hover{color:var(--accent)}
@@ -3453,6 +3458,61 @@ function orderCardDrop(e, targetId) {
   orderDragId = null;
   renderOrders();
 }
+
+// ── タブ・フィルター D&D（汎用） ──────────────────────────────
+function initDraggableTabs(container, storageKey) {
+  if (!container) return;
+  function getKey(btn) {
+    return btn.id || btn.dataset.filter || btn.dataset.pfilter || btn.textContent.trim();
+  }
+  // draggable付与
+  Array.from(container.children).forEach(b => { if (b.tagName === 'BUTTON') b.setAttribute('draggable','true'); });
+  // 保存済み順序を復元
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+    if (Array.isArray(saved) && saved.length) {
+      saved.forEach(key => {
+        const btn = Array.from(container.children).find(b => b.tagName==='BUTTON' && getKey(b)===key);
+        if (btn) container.appendChild(btn);
+      });
+    }
+  } catch(e) {}
+  let dragSrc = null;
+  function clearInd() { container.querySelectorAll('.tab-drag-before,.tab-drag-after').forEach(el => el.classList.remove('tab-drag-before','tab-drag-after')); }
+  container.addEventListener('dragstart', e => {
+    const btn = e.target.closest('button');
+    if (!btn || !container.contains(btn)) return;
+    dragSrc = btn;
+    setTimeout(() => btn.classList.add('tab-dragging'), 0);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  container.addEventListener('dragend', () => {
+    if (dragSrc) dragSrc.classList.remove('tab-dragging');
+    clearInd(); dragSrc = null;
+  });
+  container.addEventListener('dragover', e => {
+    const btn = e.target.closest('button');
+    if (!btn || !container.contains(btn) || btn === dragSrc) return;
+    e.preventDefault(); clearInd();
+    const r = btn.getBoundingClientRect();
+    btn.classList.add(e.clientX < r.left + r.width / 2 ? 'tab-drag-before' : 'tab-drag-after');
+  });
+  container.addEventListener('dragleave', e => { if (!container.contains(e.relatedTarget)) clearInd(); });
+  container.addEventListener('drop', e => {
+    const btn = e.target.closest('button');
+    if (!btn || !container.contains(btn) || !dragSrc || btn === dragSrc) return;
+    e.preventDefault(); clearInd();
+    const r = btn.getBoundingClientRect();
+    if (e.clientX < r.left + r.width / 2) container.insertBefore(dragSrc, btn);
+    else (btn.after ? btn.after(dragSrc) : btn.parentNode.insertBefore(dragSrc, btn.nextSibling));
+    const order = Array.from(container.children).filter(b => b.tagName==='BUTTON').map(b => getKey(b));
+    try { localStorage.setItem(storageKey, JSON.stringify(order)); } catch(ex) {}
+  });
+}
+// メインタブ・サブフィルター D&D 初期化
+initDraggableTabs(document.getElementById('tab-nav-inner'),                    'ago_main_tab_order');
+initDraggableTabs(document.querySelector('#dashboard-view .filter-bar'),        'ago_order_filter_order');
+initDraggableTabs(document.getElementById('proj-filter-row'),                   'ago_proj_filter_order');
 
 // ── パイプライン案件モーダル ─────────────────────────────────
 function showPipelineModal(editId) {
