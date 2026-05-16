@@ -210,7 +210,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .sch-gantt th{background:var(--surface);border:1px solid var(--border);padding:8px 6px;font-size:12px;color:var(--muted);font-weight:600;text-align:center}
 .sch-gantt th.today{background:var(--primary);color:#fff}
 .sch-gantt td{border:1px solid var(--border);padding:4px;vertical-align:top;min-width:80px;height:48px}
-.sch-gantt .staff-name{background:var(--surface);font-weight:600;font-size:13px;color:var(--text);padding:8px;min-width:90px;cursor:grab}
+.sch-gantt .staff-name{background:var(--surface);font-weight:600;font-size:13px;color:var(--text);padding:6px 8px;width:80px;min-width:60px;max-width:80px;cursor:grab;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .sch-drag-handle{color:var(--muted);margin-right:4px;font-size:15px;vertical-align:middle}
 .sch-gantt tr.sch-row-dragging{opacity:.35}
 .sch-gantt tr.sch-drop-above td{border-top:2px solid var(--accent)!important}
@@ -1990,8 +1990,11 @@ function renderOrders() {
     // 到着予定日
     const arrivalInfo = o.arrival_date ? `<span style="font-size:11px;color:var(--muted)">到着: ${o.arrival_date}</span>` : '';
     // 現場リンク
-    const projName = o.project_link ? (() => { const p = schProjects.find(x => x.id == o.project_link); return p ? escHtml(p.name) : ''; })() : '';
-    const projBadge = projName ? `<div style="margin:4px 0 2px"><span style="display:inline-block;background:rgba(37,99,235,.1);color:var(--accent);border:1px solid rgba(37,99,235,.25);border-radius:20px;padding:3px 10px;font-size:13px;font-weight:600">🏗 ${projName}</span></div>` : '';
+    const projName = o.project_link ? (() => {
+      const p = lsLoad(LS_PROJECTS_PIPELINE).find(x => x.id == o.project_link) || schProjects.find(x => x.id == o.project_link);
+      return p ? escHtml(p.name || '') : '';
+    })() : '';
+    const projBadge = projName ? `<div style="background:rgba(99,102,241,.12);border-left:4px solid var(--primary);border-radius:0 8px 8px 0;padding:7px 12px;margin:8px 0 6px"><span style="font-size:16px;font-weight:800;color:var(--accent);letter-spacing:.3px">🏗 ${projName}</span></div>` : '';
     return `
     <div class="${staleClass}" onclick="openDetail(${o.id})">
       ${staleBadge}
