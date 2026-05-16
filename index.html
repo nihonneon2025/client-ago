@@ -210,7 +210,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .sch-gantt th{background:var(--surface);border:1px solid var(--border);padding:8px 6px;font-size:12px;color:var(--muted);font-weight:600;text-align:center}
 .sch-gantt th.today{background:var(--primary);color:#fff}
 .sch-gantt td{border:1px solid var(--border);padding:4px;vertical-align:top;min-width:80px;height:48px}
-.sch-gantt .staff-name{background:var(--surface);font-weight:600;font-size:13px;color:var(--text);padding:6px 8px;width:80px;min-width:60px;max-width:80px;cursor:grab;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.sch-gantt .staff-name{background:var(--surface);font-weight:600;font-size:13px;color:var(--text);padding:6px 8px;width:110px;min-width:70px;max-width:160px;cursor:grab;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .sch-drag-handle{color:var(--muted);margin-right:4px;font-size:15px;vertical-align:middle}
 .sch-gantt tr.sch-row-dragging{opacity:.35}
 .sch-gantt tr.sch-drop-above td{border-top:2px solid var(--accent)!important}
@@ -477,6 +477,20 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .phase-quick-select{background:var(--card);border:1px solid var(--primary);color:var(--accent);padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;outline:none;transition:border-color .2s}
 .phase-quick-select:hover{border-color:var(--accent)}
 .phase-quick-select option{background:var(--surface);color:var(--text)}
+/* ═══ 列リサイズ ═══ */
+.col-resize-th{position:relative;user-select:none}
+.col-resize-handle{position:absolute;right:0;top:0;width:6px;height:100%;cursor:col-resize;z-index:5}
+.col-resize-handle::after{content:'';position:absolute;right:1px;top:15%;height:70%;width:2px;background:var(--border);border-radius:1px;transition:background .15s}
+.col-resize-handle:hover::after{background:var(--primary)}
+body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!important}
+/* ═══ カードリサイズ ═══ */
+.proj-pipeline-card{resize:horizontal;overflow:hidden;min-width:220px}
+.order-card{resize:horizontal;overflow:hidden;min-width:180px}
+/* ═══ タブ折りたたみ ═══ */
+.tab-collapse-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:4px 8px;line-height:1;flex-shrink:0;transition:color .2s}
+.tab-collapse-btn:hover{color:var(--accent)}
+.tab-nav-wrap{display:flex;align-items:center;border-bottom:1px solid var(--border);overflow:hidden;transition:max-height .25s}
+.tab-nav-wrap.collapsed{max-height:0;border-bottom:none}
 </style>
 </head>
 <body>
@@ -573,16 +587,19 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 </div>
 
 <!-- Tab Navigation -->
-<div class="tab-nav">
-  <button class="tab-btn active" id="tab-projects" onclick="switchTab('projects')">🏗 <span id="tab-projects-lbl">案件管理</span></button>
-  <button class="tab-btn" id="tab-accounting" onclick="switchTab('accounting')">💰 <span id="tab-accounting-lbl">経理</span></button>
-  <button class="tab-btn" id="tab-schedule" onclick="switchTab('schedule')">📅 <span id="tab-schedule-lbl">工程</span></button>
-  <button class="tab-btn" id="tab-orders" onclick="switchTab('orders')">📦 <span id="tab-orders-lbl">資材注文</span></button>
-  <button class="tab-btn" id="tab-attendance" onclick="switchTab('attendance')">⏰ <span id="tab-attendance-lbl">勤怠</span></button>
-  <button class="tab-btn" id="tab-monthly" onclick="switchTab('monthly')">📊 <span id="tab-monthly-lbl">月別収支</span></button>
-  <button class="tab-btn" id="tab-customers" onclick="switchTab('customers')">👥 <span id="tab-customers-lbl">顧客</span></button>
-  <button class="tab-btn" id="tab-instructions" onclick="switchTab('instructions')">✉ <span id="tab-instructions-lbl">指示</span></button>
-  <button class="tab-btn" id="tab-line" onclick="switchTab('line')">💬 <span id="tab-line-lbl">LINE</span></button>
+<div style="display:flex;align-items:center;border-bottom:1px solid var(--border);background:var(--surface)">
+  <button class="tab-collapse-btn" id="tab-collapse-btn" onclick="toggleTabNav()" title="タブを折りたたむ">☰</button>
+  <div class="tab-nav" id="tab-nav-inner" style="flex:1;overflow-x:auto;border-bottom:none;white-space:nowrap">
+    <button class="tab-btn active" id="tab-projects" onclick="switchTab('projects')">🏗 <span id="tab-projects-lbl">案件管理</span></button>
+    <button class="tab-btn" id="tab-accounting" onclick="switchTab('accounting')">💰 <span id="tab-accounting-lbl">経理</span></button>
+    <button class="tab-btn" id="tab-schedule" onclick="switchTab('schedule')">📅 <span id="tab-schedule-lbl">工程</span></button>
+    <button class="tab-btn" id="tab-orders" onclick="switchTab('orders')">📦 <span id="tab-orders-lbl">資材注文</span></button>
+    <button class="tab-btn" id="tab-attendance" onclick="switchTab('attendance')">⏰ <span id="tab-attendance-lbl">勤怠</span></button>
+    <button class="tab-btn" id="tab-monthly" onclick="switchTab('monthly')">📊 <span id="tab-monthly-lbl">月別収支</span></button>
+    <button class="tab-btn" id="tab-customers" onclick="switchTab('customers')">👥 <span id="tab-customers-lbl">顧客</span></button>
+    <button class="tab-btn" id="tab-instructions" onclick="switchTab('instructions')">✉ <span id="tab-instructions-lbl">指示</span></button>
+    <button class="tab-btn" id="tab-line" onclick="switchTab('line')">💬 <span id="tab-line-lbl">LINE</span></button>
+  </div>
 </div>
 
 <!-- Dashboard / Orders View -->
@@ -3255,6 +3272,69 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') hideProjectCtxMenu();
 });
 
+// ── タブ折りたたみ ─────────────────────────────────────────────
+function toggleTabNav() {
+  const nav = document.getElementById('tab-nav-inner');
+  const btn = document.getElementById('tab-collapse-btn');
+  if (!nav) return;
+  const collapsed = nav.style.display === 'none';
+  nav.style.display = collapsed ? '' : 'none';
+  btn.textContent = collapsed ? '☰' : '✕';
+  try { localStorage.setItem('ago_tab_collapsed', collapsed ? '0' : '1'); } catch(e) {}
+}
+(function restoreTabCollapse() {
+  if (localStorage.getItem('ago_tab_collapsed') === '1') {
+    const nav = document.getElementById('tab-nav-inner');
+    const btn = document.getElementById('tab-collapse-btn');
+    if (nav) nav.style.display = 'none';
+    if (btn) btn.textContent = '✕';
+  }
+})();
+
+// ── 列リサイズ ──────────────────────────────────────────────────
+function initColResize(table, storageKey) {
+  if (!table) return;
+  const ths = Array.from(table.querySelectorAll('thead th'));
+  ths.forEach((th, idx) => {
+    th.classList.add('col-resize-th');
+    if (th.querySelector('.col-resize-handle')) return;
+    const handle = document.createElement('div');
+    handle.className = 'col-resize-handle';
+    th.appendChild(handle);
+    handle.addEventListener('mousedown', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      const startX = e.clientX;
+      const startW = th.getBoundingClientRect().width;
+      document.body.classList.add('col-resizing');
+      function onMove(ev) {
+        const w = Math.max(50, startW + ev.clientX - startX);
+        th.style.width = w + 'px';
+        th.style.minWidth = w + 'px';
+        th.style.maxWidth = w + 'px';
+      }
+      function onUp() {
+        document.body.classList.remove('col-resizing');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (storageKey) {
+          const widths = ths.map(t => Math.round(t.getBoundingClientRect().width));
+          try { localStorage.setItem('col_w_' + storageKey, JSON.stringify(widths)); } catch(ex) {}
+        }
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+  if (storageKey) {
+    try {
+      const saved = JSON.parse(localStorage.getItem('col_w_' + storageKey) || 'null');
+      if (saved && saved.length === ths.length) {
+        ths.forEach((th, i) => { th.style.width=saved[i]+'px'; th.style.minWidth=saved[i]+'px'; th.style.maxWidth=saved[i]+'px'; });
+      }
+    } catch(ex) {}
+  }
+}
+
 // ── パイプライン案件モーダル ─────────────────────────────────
 function showPipelineModal(editId) {
   const proj = editId ? lsLoad(LS_PROJECTS_PIPELINE).find(p => p.id == editId) : null;
@@ -5390,6 +5470,9 @@ function renderOverview() {
   // スマホ touch D&D 初期化
   const tbody = container.querySelector('tbody');
   if (tbody) initGanttTouchDnd(tbody);
+  // 列リサイズ初期化
+  const tbl = container.querySelector('table');
+  if (tbl) initColResize(tbl, 'gantt_overview');
 }
 
 // ── タイムラインビュー（24時間横軸チャート）────────────────────
