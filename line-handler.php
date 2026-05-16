@@ -33,6 +33,9 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
         $pending_data = null; // 期限切れ
     }
 
+    // LINE AI の学習データ（サーバーKVに永続保存・担当AI専用）
+    $ai_learning = json_decode(ago_kv_get('ago_ai_learning_line') ?? '{}', true) ?: [];
+
     // ── 3. ユーザー別会話履歴（最新10往復） ────────────────────────
     $conv_key  = 'ago_line_conv_' . $userId;
     $conv_hist = json_decode(ago_kv_get($conv_key) ?? '[]', true) ?: [];
@@ -230,10 +233,7 @@ SYS;
     // ── 7. アクション分類（即実行 vs 確認キュー） ────────────────────
     $CONFIRM_ALWAYS   = ['create_estimate','create_invoice','create_purchase_order','update_phase'];
     $CONFIRM_LEARNING = ['update_order_status','create_project'];
-    $LEARN_THRESHOLD  = 3;
     $NO_CONFIRM       = ['register_name','set_schedule','clear_schedule','confirm_pending_actions'];
-
-    $exec_counts = json_decode(ago_kv_get('ago_action_exec_counts') ?? '{}', true) ?: [];
 
     $to_execute = [];
     $to_confirm = [];
@@ -245,7 +245,8 @@ SYS;
         } elseif (in_array($type, $CONFIRM_ALWAYS)) {
             $to_confirm[] = $action;
         } elseif (in_array($type, $CONFIRM_LEARNING)) {
-            if (($exec_counts[$type] ?? 0) >= $LEARN_THRESHOLD) {
+            // 学習データで自動実行可否を判定
+            if (line_ai_should_auto($type, $ai_learning)) {
                 $to_execute[] = $action;
             } else {
                 $to_confirm[] = $action;
@@ -257,11 +258,6 @@ SYS;
 
     foreach ($to_execute as $action) {
         execute_action($action, $userId, $users_map, $ts);
-        $type = $action['type'] ?? '';
-        if (in_array($type, $CONFIRM_LEARNING)) {
-            $exec_counts[$type] = ($exec_counts[$type] ?? 0) + 1;
-            ago_kv_set('ago_action_exec_counts', json_encode($exec_counts, JSON_UNESCAPED_UNICODE));
-        }
     }
 
     if ($to_confirm) {
@@ -273,30 +269,40 @@ SYS;
         $existing_data['generated_at'] = date('Y-m-d H:i:s');
         $max_no = count($existing_data['actions']) > 0 ? max(array_column($existing_data['actions'], 'no')) : 0;
 
+        $kanno_id = defined('KANNO_LINE_ID') ? KANNO_LINE_ID : '';
+        $is_kanno = ($userId === $kanno_id);
+
         $conf_lines = [];
         foreach ($to_confirm as $action) {
             $max_no++;
-            $type   = $action['type'] ?? '';
+            $type    = $action['type'] ?? '';
             $summary = action_summary($action);
+            $stats   = $ai_learning[$type] ?? ['confirmed' => 0, 'declined' => 0];
+            $total   = ($stats['confirmed'] ?? 0) + ($stats['declined'] ?? 0);
             $reason  = in_array($type, $CONFIRM_ALWAYS)
-                ? '（金銭・要確認）'
-                : '（' . (($exec_counts[$type] ?? 0) + 1) . '/' . $LEARN_THRESHOLD . '回目・学習中）';
+                ? '（金銭・毎回確認）'
+                : '（学習中 ' . ($total + 1) . '回目）';
             $existing_data['actions'][] = [
-                'no'    => $max_no,
-                'type'  => $type,
-                'id'    => (int)($action['project_id'] ?? $action['order_id'] ?? 0),
-                'value' => $action['phase'] ?? $action['status'] ?? '',
-                'label' => $summary . $reason,
-                'raw'   => $action,
+                'no'     => $max_no,
+                'type'   => $type,
+                'id'     => (int)($action['project_id'] ?? $action['order_id'] ?? 0),
+                'value'  => $action['phase'] ?? $action['status'] ?? '',
+                'label'  => $summary . $reason,
+                'source' => 'line',
+                'sender' => $user_name,
+                'raw'    => $action,
             ];
-            $conf_lines[] = "【{$max_no}】{$summary}";
+            $conf_lines[] = "【{$max_no}】{$summary}{$reason}";
         }
         ago_kv_set('ago_pending_actions', json_encode($existing_data, JSON_UNESCAPED_UNICODE));
 
-        $kanno_id = defined('KANNO_LINE_ID') ? KANNO_LINE_ID : '';
         if ($kanno_id && $line_token) {
-            $who      = ($userId === $kanno_id) ? '' : "（{$user_name}より）";
-            $push_msg = "【確認依頼{$who}】\n\n" . implode("\n", $conf_lines) . "\n\n「【1】はい 【2】まだ」で返信してください";
+            $sender_line = $is_kanno
+                ? '送信者: 菅野さん本人'
+                : "送信者: {$user_name}";
+            $push_msg = "【LINE AI 確認依頼】\n{$sender_line}\n\n"
+                . implode("\n", $conf_lines)
+                . "\n\n「【1】はい 【2】まだ」で返信してください";
             line_push_msg($line_token, $kanno_id, $push_msg);
         }
     }
@@ -565,11 +571,47 @@ function execute_action($action, $userId, $users_map, $ts) {
                     ago_kv_set('ago_pending_actions', '');
                 }
             }
+
+            // 担当AIごとの学習データを更新（承認 / 却下を記録）
+            $declined_nos = $action['declined'] ?? [];
+            $learn_updates = []; // [learn_key => [type => delta]]
+            foreach ($pdata['actions'] as $pa) {
+                $atype      = $pa['raw']['type'] ?? $pa['type'];
+                $src        = $pa['source'] ?? 'line';
+                $learn_key  = 'ago_ai_learning_' . $src;
+                if (!isset($learn_updates[$learn_key])) $learn_updates[$learn_key] = [];
+                if (!isset($learn_updates[$learn_key][$atype])) {
+                    $learn_updates[$learn_key][$atype] = ['confirmed' => 0, 'declined' => 0];
+                }
+                if (in_array($pa['no'], $confirmed)) {
+                    $learn_updates[$learn_key][$atype]['confirmed']++;
+                } elseif (in_array($pa['no'], $declined_nos)) {
+                    $learn_updates[$learn_key][$atype]['declined']++;
+                }
+            }
+            foreach ($learn_updates as $learn_key => $updates) {
+                $ldata = json_decode(ago_kv_get($learn_key) ?? '{}', true) ?: [];
+                foreach ($updates as $atype => $delta) {
+                    if (!isset($ldata[$atype])) $ldata[$atype] = ['confirmed' => 0, 'declined' => 0];
+                    $ldata[$atype]['confirmed'] += $delta['confirmed'];
+                    $ldata[$atype]['declined']  += $delta['declined'];
+                }
+                ago_kv_set($learn_key, json_encode($ldata, JSON_UNESCAPED_UNICODE));
+            }
             break;
     }
 }
 
 // ── 内部ヘルパー ──────────────────────────────────────────────────
+
+function line_ai_should_auto($type, $learning) {
+    $stats    = $learning[$type] ?? [];
+    $conf     = (int)($stats['confirmed'] ?? 0);
+    $decl     = (int)($stats['declined']  ?? 0);
+    $total    = $conf + $decl;
+    if ($total < 3) return false;          // サンプル不足 → 確認する
+    return ($conf / $total) >= 0.8;        // 承認率80%以上 → 自動実行
+}
 
 function action_summary($action) {
     $type = $action['type'] ?? '';

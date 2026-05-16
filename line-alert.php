@@ -278,17 +278,19 @@ if ($actionable) {
                 'id'     => $item['id'],
                 'value'  => $item['next_phase'],
                 'label'  => $item['label'],
+                'source' => 'alert',
             ];
         } elseif ($item['kind'] === 'order' && !empty($item['next'])) {
             $next_label = order_label($item['next']['status']);
             $question   = $item['next']['question'];
             $lines[]    = "【{$no}】{$item['label']}\n  {$question}（はいで{$next_label}に更新）";
             $pending_actions[] = [
-                'no'    => $no,
-                'type'  => 'update_order_status',
-                'id'    => $item['id'],
-                'value' => $item['next']['status'],
-                'label' => $item['label'],
+                'no'     => $no,
+                'type'   => 'update_order_status',
+                'id'     => $item['id'],
+                'value'  => $item['next']['status'],
+                'label'  => $item['label'],
+                'source' => 'alert',
             ];
         } else {
             $no--;
