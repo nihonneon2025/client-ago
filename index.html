@@ -6767,11 +6767,31 @@ setLang(lang);
   loadOrders();
 })();
 
-// 30秒ごとに全端末のデータを同期して現在タブを再描画
+// 監視対象キー（変更検知用）
+const _REALTIME_KEYS = [
+  'ago_projects','ago_estimates','ago_invoices',
+  'ago_line_logs','ago_orders','ago_purchase_orders','ago_expenses'
+];
+let _lastSyncHash = '';
+
+function _syncHash() {
+  return _REALTIME_KEYS.map(k => (localStorage.getItem(k) || '').length).join(',');
+}
+
+// 3秒ごとに同期・変更があった時だけ再描画
 setInterval(async () => {
+  const before = _syncHash();
   await syncFromServer();
-  renderCurrentTab();
-}, 30000);
+  const after = _syncHash();
+  if (before !== after) {
+    // 詳細画面表示中はリストに戻さず詳細を再描画
+    if (currentTab === 'projects' && currentPipelineProjectId !== null) {
+      renderPipelineDetail(currentPipelineProjectId);
+    } else {
+      renderCurrentTab();
+    }
+  }
+}, 3000);
 
 // 画面がフォーカスされたとき（スマホでアプリ復帰など）も同期
 document.addEventListener('visibilitychange', () => {

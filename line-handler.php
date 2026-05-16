@@ -9,7 +9,7 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 
     ago_log_update($log_id, ['status' => 'processing']);
 
-    // ── 現在の案件一覧を取得 ─────────────────────────────────────
+    // ── 現在の案件一覧・書類一覧を取得 ──────────────────────────
     $raw_projects = ago_kv_get('ago_projects');
     $projects     = json_decode($raw_projects ?? '[]', true) ?: [];
 
@@ -18,7 +18,7 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     $conv     = json_decode($raw_conv ?? '[]', true) ?: [];
     $recent   = array_slice($conv, 0, 5);
 
-    // ── AI判定プロンプト ─────────────────────────────────────────
+    // ── 案件サマリー（AIに渡す） ─────────────────────────────────
     $projects_summary = '';
     foreach (array_slice($projects, 0, 20) as $p) {
         $projects_summary .= sprintf(
@@ -33,112 +33,51 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
         $conv_text .= $role . ': ' . $c['text'] . "\n";
     }
 
-    $phase_map = json_encode([
-        '受付'             => 'reception',
-        '受注確定'         => 'order-confirmed',
-        '設計中'           => 'designing',
-        '見積中'           => 'estimating',
-        '契約中'           => 'contracting',
-        '発注中'           => 'ordering',
-        '施工調整中'       => 'construction-adj',
-        '施工中'           => 'construction',
-        '設計検査及び引渡し前' => 'design-inspection',
-        '施主検査'         => 'client-inspection',
-        '是正'             => 'correction',
-        '消防検査'         => 'fire-inspection',
-        '保健所検査'       => 'health-inspection',
-        '公安委員会検査'   => 'police-inspection',
-        '完工及び請求書未作成' => 'completion-pending',
-        '請求済'           => 'invoiced',
-        'キャンセル'       => 'cancelled',
-    ], JSON_UNESCAPED_UNICODE);
+    $phase_map = '受付=reception, 受注確定=order-confirmed, 設計中=designing, 見積中=estimating, 契約中=contracting, 発注中=ordering, 施工調整中=construction-adj, 施工中=construction, 設計検査及び引渡し前=design-inspection, 施主検査=client-inspection, 是正=correction, 消防検査=fire-inspection, 保健所検査=health-inspection, 公安委員会検査=police-inspection, 完工及び請求書未作成=completion-pending, 請求済=invoiced, キャンセル=cancelled';
 
-    $system_prompt = <<<EOT
-あなたはAGO（看板・LED・電気工事・内装工事会社）の業務AIアシスタントです。
-スタッフ（主に菅野さん）がLINEで送ったメッセージを解析し、適切な業務アクションを決定してください。
+    // ── Step1: 意図判定 ──────────────────────────────────────────
+    $intent_prompt = <<<EOT
+あなたはAGO（看板・LED・電気工事・内装工事会社）の業務AIです。
+スタッフのLINEメッセージから業務意図を判定し、JSONのみ返してください。
 
 【現在の案件一覧】
 {$projects_summary}
-
-【フェーズ値マッピング】
-{$phase_map}
-
-【直近の会話履歴】
+【フェーズ値】{$phase_map}
+【直近の会話】
 {$conv_text}
 
-以下のJSONのみを返してください。余計な説明不要。
-
+返すJSON:
 {
-  "intent": "one of: new_project / update_phase / create_estimate / create_invoice / status_check / general",
-  "project_id": null または既存案件のID（数値）,
-  "reply": "菅野さんへのLINE返信文（丁寧・簡潔・日本語）",
-  "data": {
-    // intent=new_project の場合:
+  "intent": "new_project / update_phase / create_estimate / create_invoice / status_check / general",
+  "project_id": null または案件ID（数値）,
+  "phase": "フェーズのシステム値（update_phaseの時のみ）",
+  "amount": 金額税抜（create_estimate/create_invoiceの時のみ・数値）,
+  "reply": "菅野さんへのLINE返信文（丁寧・簡潔）",
+  "new_project_data": {
     "name": "案件名",
     "client_name": "顧客名",
-    "description": "概要",
-
-    // intent=update_phase の場合:
-    "phase": "フェーズのシステム値（例: designing）",
-
-    // intent=create_estimate の場合:
-    "amount": 金額（数値・税抜）,
-    "items": [{"description":"内容","qty":1,"unit_price":金額}],
-
-    // intent=create_invoice の場合:
-    "amount": 金額（数値・税抜）,
-    "items": [{"description":"内容","qty":1,"unit_price":金額}],
-
-    // intent=status_check / general の場合:
-    // data は空オブジェクト {}
+    "description": "概要2〜3文"
   }
 }
 
 判定ルール:
-- 新しい依頼・案件・工事の話 → new_project
-- 「〇〇に進めて」「フェーズ変えて」「設計中にして」等 → update_phase
-- 「見積作って」「見積もりお願い」等 → create_estimate
-- 「請求書作って」「請求お願い」等 → create_invoice
-- 「今の状況は？」「どうなってる？」等 → status_check
-- その他・雑談・不明 → general
-
-project_idは案件一覧から最も関連しそうなIDを選ぶ。新規案件の場合はnull。
+- 新しい依頼・案件・工事の話 → new_project（new_project_dataを必ず埋める）
+- フェーズを進める・変える → update_phase（phaseを必ず埋める）
+- 見積もり・見積書 → create_estimate（amountを埋める・不明は0）
+- 請求書 → create_invoice（amountを埋める・不明は0）
+- 現状確認・状況報告 → status_check
+- その他・雑談 → general
 EOT;
 
-    $payload = [
-        'model'      => 'claude-haiku-4-5-20251001',
-        'max_tokens' => 1024,
-        'system'     => $system_prompt,
-        'messages'   => [['role' => 'user', 'content' => $text]]
-    ];
-
-    $ch = curl_init('https://api.anthropic.com/v1/messages');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => json_encode($payload),
-        CURLOPT_HTTPHEADER     => [
-            'x-api-key: ' . $api_key,
-            'anthropic-version: 2023-06-01',
-            'Content-Type: application/json'
-        ],
-        CURLOPT_TIMEOUT => 30
-    ]);
-    $result = curl_exec($ch);
-    $err    = curl_error($ch);
-    curl_close($ch);
-
-    if ($err) {
-        $msg = 'AIとの通信でエラーが発生しました。しばらくしてから再送してください。';
-        ago_log_update($log_id, ['status' => 'error', 'error' => 'AI接続エラー: ' . $err]);
+    $intent_result = ai_call($api_key, $intent_prompt, $text, 768);
+    if (!$intent_result) {
+        $msg = 'AIとの通信でエラーが発生しました。しばらくして再送してください。';
+        ago_log_update($log_id, ['status' => 'error', 'error' => 'AI接続エラー']);
         if ($line_token && $reply_token) line_reply($line_token, $reply_token, $msg);
         return;
     }
 
-    $ai_data = json_decode($result, true);
-    $ai_text = $ai_data['content'][0]['text'] ?? '';
-
-    preg_match('/\{[\s\S]*\}/u', $ai_text, $matches);
+    preg_match('/\{[\s\S]*\}/u', $intent_result, $matches);
     $parsed = json_decode($matches[0] ?? '{}', true);
 
     if (empty($parsed['intent'])) {
@@ -149,156 +88,155 @@ EOT;
     }
 
     $intent     = $parsed['intent'];
-    $project_id = $parsed['project_id'] ?? null;
+    $project_id = isset($parsed['project_id']) ? (int)$parsed['project_id'] : null;
     $reply_msg  = $parsed['reply'] ?? '処理しました。';
-    $data       = $parsed['data'] ?? [];
 
-    // ── 意図別処理 ───────────────────────────────────────────────
-
+    // ── Step2: 意図別処理 ────────────────────────────────────────
     $result_project_id = null;
+    $ai_result_log     = [];
 
     switch ($intent) {
 
+        // ── 新規案件登録 ────────────────────────────────────────
         case 'new_project':
-            if (!empty($data['name'])) {
-                $raw      = ago_kv_get('ago_projects');
-                $projs    = json_decode($raw ?? '[]', true) ?: [];
+            $nd = $parsed['new_project_data'] ?? [];
+            if (!empty($nd['name'])) {
+                $projs    = json_decode(ago_kv_get('ago_projects') ?? '[]', true) ?: [];
                 $ids      = array_column($projs, 'id');
                 $new_id   = count($ids) > 0 ? max($ids) + 1 : 1;
                 $new_proj = [
                     'id'          => $new_id,
-                    'name'        => $data['name'],
-                    'client_name' => $data['client_name'] ?? '未設定',
+                    'name'        => $nd['name'],
+                    'client_name' => $nd['client_name'] ?? '未設定',
                     'phase'       => 'reception',
-                    'description' => $data['description'] ?? '',
+                    'description' => $nd['description'] ?? '',
                     'created_at'  => $ts,
+                    'updated_at'  => $ts,
                     'source'      => 'line',
                     'color'       => '#06c755'
                 ];
                 array_unshift($projs, $new_proj);
                 ago_kv_set('ago_projects', json_encode($projs, JSON_UNESCAPED_UNICODE));
+                // 操作ログ
+                ago_project_log($new_id, 'LINE', "新規案件登録（{$nd['name']}）", $ts);
                 $result_project_id = $new_id;
-                ago_log_update($log_id, [
-                    'status'     => 'registered',
-                    'project_id' => $new_id,
-                    'ai_result'  => $data
-                ]);
+                $ai_result_log = ['action' => 'new_project', 'name' => $nd['name'], 'client_name' => $nd['client_name'] ?? '未設定'];
             }
             break;
 
+        // ── フェーズ更新 ────────────────────────────────────────
         case 'update_phase':
-            if ($project_id !== null && !empty($data['phase'])) {
-                $raw   = ago_kv_get('ago_projects');
-                $projs = json_decode($raw ?? '[]', true) ?: [];
+            $new_phase = $parsed['phase'] ?? '';
+            if ($project_id && $new_phase) {
+                $projs = json_decode(ago_kv_get('ago_projects') ?? '[]', true) ?: [];
+                $old_phase = '';
                 foreach ($projs as &$p) {
                     if ($p['id'] == $project_id) {
-                        $p['phase'] = $data['phase'];
+                        $old_phase      = $p['phase'] ?? '';
+                        $p['phase']     = $new_phase;
+                        $p['updated_at'] = $ts;
                         break;
                     }
                 }
                 unset($p);
                 ago_kv_set('ago_projects', json_encode($projs, JSON_UNESCAPED_UNICODE));
+                // 操作ログ
+                ago_project_log($project_id, 'LINE', "フェーズ変更: {$old_phase} → {$new_phase}", $ts);
                 $result_project_id = $project_id;
-                ago_log_update($log_id, [
-                    'status'     => 'registered',
-                    'project_id' => $project_id,
-                    'ai_result'  => ['action' => 'update_phase', 'phase' => $data['phase']]
-                ]);
+                $ai_result_log = ['action' => 'update_phase', 'phase' => $new_phase, 'old_phase' => $old_phase];
             }
             break;
 
+        // ── 見積書作成 ──────────────────────────────────────────
         case 'create_estimate':
-            if ($project_id !== null && !empty($data['amount'])) {
-                $target_proj = null;
-                $raw_p = ago_kv_get('ago_projects');
-                $projs = json_decode($raw_p ?? '[]', true) ?: [];
-                foreach ($projs as $p) {
-                    if ($p['id'] == $project_id) { $target_proj = $p; break; }
+            $amount = (int)($parsed['amount'] ?? 0);
+            $target = find_project($projects, $project_id);
+            if ($target) {
+                // Step2b: AIで見積書明細を生成
+                $items = generate_items($api_key, $text, $amount, $target);
+                if (!$amount && !empty($items)) {
+                    $amount = array_sum(array_map(fn($i) => ($i['qty'] ?? 1) * ($i['unit_price'] ?? 0), $items));
                 }
-                if ($target_proj) {
-                    $raw_e    = ago_kv_get('ago_estimates');
-                    $ests     = json_decode($raw_e ?? '[]', true) ?: [];
-                    $eids     = array_column($ests, 'id');
-                    $new_eid  = count($eids) > 0 ? max($eids) + 1 : 1;
-                    $items    = !empty($data['items']) ? $data['items'] : [
-                        ['description' => '施工費', 'qty' => 1, 'unit_price' => $data['amount']]
-                    ];
-                    $new_est  = [
-                        'id'          => $new_eid,
-                        'doc_type'    => 'estimate',
-                        'project_id'  => (string)$project_id,
-                        'client_name' => $target_proj['client_name'] ?? '未設定',
-                        'issue_date'  => date('Y-m-d'),
-                        'amount'      => $data['amount'],
-                        'tax'         => round($data['amount'] * 0.1),
-                        'items'       => $items,
-                        'status'      => 'draft',
-                        'created_at'  => $ts,
-                        'source'      => 'line'
-                    ];
-                    array_unshift($ests, $new_est);
-                    ago_kv_set('ago_estimates', json_encode($ests, JSON_UNESCAPED_UNICODE));
-                    $result_project_id = $project_id;
-                    ago_log_update($log_id, [
-                        'status'     => 'registered',
-                        'project_id' => $project_id,
-                        'ai_result'  => ['action' => 'create_estimate', 'amount' => $data['amount']]
-                    ]);
-                }
+                $ests    = json_decode(ago_kv_get('ago_estimates') ?? '[]', true) ?: [];
+                $new_eid = count($ests) > 0 ? max(array_column($ests, 'id')) + 1 : 1;
+                $new_est = [
+                    'id'          => $new_eid,
+                    'doc_type'    => 'estimate',
+                    'project_id'  => (string)$project_id,
+                    'client_name' => $target['client_name'] ?? '未設定',
+                    'issue_date'  => date('Y-m-d'),
+                    'amount'      => $amount,
+                    'tax'         => (int)round($amount * 0.1),
+                    'items'       => $items,
+                    'status'      => 'draft',
+                    'created_at'  => $ts,
+                    'source'      => 'line'
+                ];
+                array_unshift($ests, $new_est);
+                ago_kv_set('ago_estimates', json_encode($ests, JSON_UNESCAPED_UNICODE));
+                // フェーズを見積中に更新
+                update_project_phase($project_id, 'estimating', $ts);
+                ago_project_log($project_id, 'LINE', "見積書作成（税抜{$amount}円）", $ts);
+                $result_project_id = $project_id;
+                $ai_result_log = ['action' => 'create_estimate', 'amount' => $amount, 'items_count' => count($items)];
+                $reply_msg .= "\n書類タブで見積書をご確認・修正いただけます。";
+            } else {
+                $reply_msg = '対象の案件が特定できませんでした。案件名を含めてもう一度送ってください。';
             }
             break;
 
+        // ── 請求書作成 ──────────────────────────────────────────
         case 'create_invoice':
-            if ($project_id !== null && !empty($data['amount'])) {
-                $target_proj = null;
-                $raw_p = ago_kv_get('ago_projects');
-                $projs = json_decode($raw_p ?? '[]', true) ?: [];
-                foreach ($projs as $p) {
-                    if ($p['id'] == $project_id) { $target_proj = $p; break; }
+            $amount = (int)($parsed['amount'] ?? 0);
+            $target = find_project($projects, $project_id);
+            if ($target) {
+                $items   = generate_items($api_key, $text, $amount, $target);
+                if (!$amount && !empty($items)) {
+                    $amount = array_sum(array_map(fn($i) => ($i['qty'] ?? 1) * ($i['unit_price'] ?? 0), $items));
                 }
-                if ($target_proj) {
-                    $raw_i   = ago_kv_get('ago_invoices');
-                    $invs    = json_decode($raw_i ?? '[]', true) ?: [];
-                    $iids    = array_column($invs, 'id');
-                    $new_iid = count($iids) > 0 ? max($iids) + 1 : 1;
-                    $items   = !empty($data['items']) ? $data['items'] : [
-                        ['description' => '施工費', 'qty' => 1, 'unit_price' => $data['amount']]
-                    ];
-                    $new_inv = [
-                        'id'          => $new_iid,
-                        'doc_type'    => 'invoice',
-                        'project_id'  => (string)$project_id,
-                        'client_name' => $target_proj['client_name'] ?? '未設定',
-                        'issue_date'  => date('Y-m-d'),
-                        'amount'      => $data['amount'],
-                        'tax'         => round($data['amount'] * 0.1),
-                        'items'       => $items,
-                        'status'      => 'unpaid',
-                        'created_at'  => $ts,
-                        'source'      => 'line'
-                    ];
-                    array_unshift($invs, $new_inv);
-                    ago_kv_set('ago_invoices', json_encode($invs, JSON_UNESCAPED_UNICODE));
-                    $result_project_id = $project_id;
-                    ago_log_update($log_id, [
-                        'status'     => 'registered',
-                        'project_id' => $project_id,
-                        'ai_result'  => ['action' => 'create_invoice', 'amount' => $data['amount']]
-                    ]);
-                }
+                $invs    = json_decode(ago_kv_get('ago_invoices') ?? '[]', true) ?: [];
+                $new_iid = count($invs) > 0 ? max(array_column($invs, 'id')) + 1 : 1;
+                $new_inv = [
+                    'id'          => $new_iid,
+                    'doc_type'    => 'invoice',
+                    'project_id'  => (string)$project_id,
+                    'client_name' => $target['client_name'] ?? '未設定',
+                    'issue_date'  => date('Y-m-d'),
+                    'amount'      => $amount,
+                    'tax'         => (int)round($amount * 0.1),
+                    'items'       => $items,
+                    'status'      => 'unpaid',
+                    'created_at'  => $ts,
+                    'source'      => 'line'
+                ];
+                array_unshift($invs, $new_inv);
+                ago_kv_set('ago_invoices', json_encode($invs, JSON_UNESCAPED_UNICODE));
+                // フェーズを完工/請求未作成→請求済に更新
+                update_project_phase($project_id, 'invoiced', $ts);
+                ago_project_log($project_id, 'LINE', "請求書作成（税抜{$amount}円）", $ts);
+                $result_project_id = $project_id;
+                $ai_result_log = ['action' => 'create_invoice', 'amount' => $amount, 'items_count' => count($items)];
+                $reply_msg .= "\n書類タブで請求書をご確認・修正いただけます。";
+            } else {
+                $reply_msg = '対象の案件が特定できませんでした。案件名を含めてもう一度送ってください。';
             }
             break;
 
+        // ── 状況確認・汎用 ─────────────────────────────────────
         case 'status_check':
         case 'general':
         default:
-            ago_log_update($log_id, [
-                'status'     => 'replied',
-                'project_id' => $project_id,
-                'ai_result'  => ['action' => $intent]
-            ]);
+            $ai_result_log = ['action' => $intent];
             break;
     }
+
+    // ── ログ更新 ────────────────────────────────────────────────
+    ago_log_update($log_id, [
+        'status'     => in_array($intent, ['status_check','general']) ? 'replied' : 'registered',
+        'project_id' => $result_project_id ?? $project_id,
+        'ai_result'  => $ai_result_log,
+        'ai_reply'   => $reply_msg
+    ]);
 
     // ── 会話履歴を保存 ───────────────────────────────────────────
     $conv[] = ['role' => 'user',      'text' => $text,      'ts' => $ts];
@@ -312,7 +250,112 @@ EOT;
     }
 }
 
-// ── ログ更新ヘルパー ─────────────────────────────────────────────
+// ── 見積・請求書の明細をAIで生成 ────────────────────────────────
+
+function generate_items($api_key, $user_text, $amount, $project) {
+    $proj_name = $project['name'] ?? '案件';
+    $client    = $project['client_name'] ?? '顧客';
+    $desc      = $project['description'] ?? '';
+    $amount_hint = $amount ? "合計金額（税抜）の目安: {$amount}円" : '';
+
+    $prompt = <<<EOT
+AGO（看板・LED・電気工事・内装工事会社）の見積書・請求書明細を生成してください。
+案件名: {$proj_name}
+顧客: {$client}
+概要: {$desc}
+{$amount_hint}
+ユーザーの指示: {$user_text}
+
+以下のJSON配列のみ返してください（3〜6項目）:
+[
+  {"description": "項目名", "qty": 数量（数値）, "unit_price": 単価（数値・税抜）},
+  ...
+]
+
+看板・LED・電気工事・内装工事の現実的な項目と金額を生成してください。
+EOT;
+
+    $result = ai_call($api_key, '', $prompt, 512);
+    if (!$result) return [['description' => '施工費', 'qty' => 1, 'unit_price' => $amount ?: 0]];
+
+    preg_match('/\[[\s\S]*\]/u', $result, $m);
+    $items = json_decode($m[0] ?? '[]', true);
+    if (!is_array($items) || empty($items)) {
+        return [['description' => '施工費', 'qty' => 1, 'unit_price' => $amount ?: 0]];
+    }
+    // 型を正規化
+    return array_map(fn($i) => [
+        'description' => (string)($i['description'] ?? '施工費'),
+        'qty'         => (int)($i['qty'] ?? 1),
+        'unit_price'  => (int)($i['unit_price'] ?? 0)
+    ], $items);
+}
+
+// ── 共通ヘルパー ────────────────────────────────────────────────
+
+function ai_call($api_key, $system, $user, $max_tokens = 512) {
+    $payload = [
+        'model'      => 'claude-haiku-4-5-20251001',
+        'max_tokens' => $max_tokens,
+        'messages'   => [['role' => 'user', 'content' => $user]]
+    ];
+    if ($system) $payload['system'] = $system;
+
+    $ch = curl_init('https://api.anthropic.com/v1/messages');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_HTTPHEADER     => [
+            'x-api-key: ' . $api_key,
+            'anthropic-version: 2023-06-01',
+            'Content-Type: application/json'
+        ],
+        CURLOPT_TIMEOUT => 30
+    ]);
+    $res = curl_exec($ch);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($err) return null;
+    $data = json_decode($res, true);
+    return $data['content'][0]['text'] ?? null;
+}
+
+function find_project($projects, $id) {
+    foreach ($projects as $p) {
+        if ($p['id'] == $id) return $p;
+    }
+    return null;
+}
+
+function update_project_phase($project_id, $phase, $ts) {
+    $projs = json_decode(ago_kv_get('ago_projects') ?? '[]', true) ?: [];
+    foreach ($projs as &$p) {
+        if ($p['id'] == $project_id) {
+            $p['phase']      = $phase;
+            $p['updated_at'] = $ts;
+            break;
+        }
+    }
+    unset($p);
+    ago_kv_set('ago_projects', json_encode($projs, JSON_UNESCAPED_UNICODE));
+}
+
+function ago_project_log($project_id, $agent, $message, $ts) {
+    $raw  = ago_kv_get('ago_project_logs');
+    $logs = json_decode($raw ?? '[]', true) ?: [];
+    $ids  = array_column($logs, 'id');
+    $logs[] = [
+        'id'         => count($ids) > 0 ? max($ids) + 1 : 1,
+        'project_id' => $project_id,
+        'agent'      => $agent,
+        'message'    => $message,
+        'created_at' => $ts
+    ];
+    ago_kv_set('ago_project_logs', json_encode($logs, JSON_UNESCAPED_UNICODE));
+}
+
+// ── ログ更新 ────────────────────────────────────────────────────
 
 function ago_log_update($log_id, $updates) {
     $raw  = ago_kv_get('ago_line_logs');
