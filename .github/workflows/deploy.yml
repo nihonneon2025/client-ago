@@ -16,7 +16,7 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: /public_html/
+          server-dir: /system002-od.ordermade-neon.com/public_html/
           exclude: |
             **/.git*
             **/.git*/**
