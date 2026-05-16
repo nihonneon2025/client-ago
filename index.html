@@ -9045,18 +9045,8 @@ async function renderLineLogs() {
   el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:16px">読み込み中...</div>';
 
   // KVストアから取得を試みる（失敗時はlocalStorageにフォールバック）
-  let logs = [];
-  try {
-    const res  = await fetch('api.php', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','X-AGO-Token':'system002-od'},
-      body: JSON.stringify({action:'kv_get', key: LS_LINE_LOGS})
-    });
-    const data = await res.json();
-    logs = JSON.parse(data.value || '[]') || [];
-  } catch(e) {
-    logs = lsLoad(LS_LINE_LOGS) || [];
-  }
+  // localStorageから直接読む（KVストアのkv_getは未対応のためフォールバック）
+  const logs = lsLoad(LS_LINE_LOGS) || [];
 
   if (logs.length === 0) {
     el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:24px 0">受信メッセージはここに表示されます</div>';
