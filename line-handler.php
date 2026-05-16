@@ -275,34 +275,38 @@ SYS;
         $conf_lines = [];
         foreach ($to_confirm as $action) {
             $max_no++;
-            $type    = $action['type'] ?? '';
-            $summary = action_summary($action);
-            $stats   = $ai_learning[$type] ?? ['confirmed' => 0, 'declined' => 0];
-            $total   = ($stats['confirmed'] ?? 0) + ($stats['declined'] ?? 0);
-            $reason  = in_array($type, $CONFIRM_ALWAYS)
-                ? '（金銭・毎回確認）'
-                : '（学習中 ' . ($total + 1) . '回目）';
+            $type     = $action['type'] ?? '';
+            $readable = action_readable($action, $proj_list, $order_list);
+            $stats    = $ai_learning[$type] ?? ['confirmed' => 0, 'declined' => 0];
+            $total    = ($stats['confirmed'] ?? 0) + ($stats['declined'] ?? 0);
+            $ai_note  = in_array($type, $CONFIRM_ALWAYS)
+                ? '※金銭書類のため毎回確認'
+                : '※学習中（' . ($total + 1) . '回目）';
             $existing_data['actions'][] = [
                 'no'     => $max_no,
                 'type'   => $type,
                 'id'     => (int)($action['project_id'] ?? $action['order_id'] ?? 0),
                 'value'  => $action['phase'] ?? $action['status'] ?? '',
-                'label'  => $summary . $reason,
+                'label'  => $readable,
                 'source' => 'line',
                 'sender' => $user_name,
                 'raw'    => $action,
             ];
-            $conf_lines[] = "【{$max_no}】{$summary}{$reason}";
+            $conf_lines[] = "【{$max_no}】{$readable}\n　　{$ai_note}";
         }
         ago_kv_set('ago_pending_actions', json_encode($existing_data, JSON_UNESCAPED_UNICODE));
 
         if ($kanno_id && $line_token) {
-            $sender_line = $is_kanno
-                ? '送信者: 菅野さん本人'
-                : "送信者: {$user_name}";
-            $push_msg = "【LINE AI 確認依頼】\n{$sender_line}\n\n"
-                . implode("\n", $conf_lines)
-                . "\n\n「【1】はい 【2】まだ」で返信してください";
+            $from        = $is_kanno ? '菅野さん本人' : $user_name . 'さん';
+            $quoted_text = '「' . mb_substr($text, 0, 40) . (mb_strlen($text) > 40 ? '…' : '') . '」';
+            $push_msg    = "📋 LINE AI 確認依頼\n"
+                . "━━━━━━━━━━━━━\n"
+                . "送信者: {$from}\n"
+                . "メッセージ: {$quoted_text}\n"
+                . "━━━━━━━━━━━━━\n"
+                . "以下を実行していいですか？\n\n"
+                . implode("\n\n", $conf_lines) . "\n\n"
+                . "返信例: 「【1】はい 【2】まだ」";
             line_push_msg($line_token, $kanno_id, $push_msg);
         }
     }
@@ -603,6 +607,59 @@ function execute_action($action, $userId, $users_map, $ts) {
 }
 
 // ── 内部ヘルパー ──────────────────────────────────────────────────
+
+function action_readable($action, $proj_list, $order_list) {
+    $phase_jp = [
+        'reception' => '受付', 'designing' => '設計中', 'estimating' => '見積中',
+        'contracting' => '契約中', 'ordering' => '発注中', 'construction-adj' => '施工調整中',
+        'construction' => '施工中', 'completion-pending' => '完工（請求書未作成）',
+        'invoiced' => '請求済', 'cancelled' => 'キャンセル',
+    ];
+    $status_jp = [
+        'received' => '受注済み', 'ordered_china' => '中国発注済み',
+        'factory_confirmed' => '工場確認済み', 'shipping_prep' => '配送準備中',
+        'in_transit' => '配送中', 'delivered' => '配送完了',
+        'cancel_customer' => 'キャンセル（顧客都合）', 'cancel_factory' => 'キャンセル（工場都合）',
+    ];
+
+    $find_proj  = function($id) use ($proj_list)  { foreach ($proj_list  as $p) { if ($p['id'] == $id) return $p['name']; } return null; };
+    $find_order = function($id) use ($order_list) { foreach ($order_list as $o) { if ($o['id'] == $id) return $o['product']; } return null; };
+
+    $type = $action['type'] ?? '';
+    switch ($type) {
+        case 'update_order_status':
+            $product = $find_order($action['order_id'] ?? 0) ?? ('資材ID:' . ($action['order_id'] ?? '?'));
+            $label   = $status_jp[$action['status'] ?? ''] ?? ($action['status'] ?? '');
+            return "「{$product}」を「{$label}」に更新する";
+
+        case 'update_phase':
+            $proj  = $find_proj($action['project_id'] ?? 0) ?? ('案件ID:' . ($action['project_id'] ?? '?'));
+            $label = $phase_jp[$action['phase'] ?? ''] ?? ($action['phase'] ?? '');
+            return "「{$proj}」のフェーズを「{$label}」に変更する";
+
+        case 'create_estimate':
+            $proj = $find_proj($action['project_id'] ?? 0) ?? ('案件ID:' . ($action['project_id'] ?? '?'));
+            return "「{$proj}」の見積書を作成する（{$action['client_name']}）";
+
+        case 'create_invoice':
+            $proj  = $find_proj($action['project_id'] ?? 0) ?? ('案件ID:' . ($action['project_id'] ?? '?'));
+            $total = 0;
+            foreach ($action['items'] ?? [] as $item) { $total += ($item['qty'] ?? 1) * ($item['unit_price'] ?? 0); }
+            $tax_total = $total + (int)round($total * 0.1);
+            $amount    = $tax_total > 0 ? '（税込 ¥' . number_format($tax_total) . '）' : '';
+            return "「{$proj}」の請求書を作成する{$amount}（{$action['client_name']}）";
+
+        case 'create_purchase_order':
+            $proj = $find_proj($action['project_id'] ?? 0) ?? ('案件ID:' . ($action['project_id'] ?? '?'));
+            return "「{$proj}」の発注書を作成する（発注先: {$action['client_name']}）";
+
+        case 'create_project':
+            return "新規案件「{$action['name']}」を登録する（顧客: {$action['client_name']}）";
+
+        default:
+            return action_summary($action);
+    }
+}
 
 function line_ai_should_auto($type, $learning) {
     $stats    = $learning[$type] ?? [];
