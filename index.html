@@ -571,6 +571,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
   <button class="tab-btn" id="tab-attendance" onclick="switchTab('attendance')">⏰ <span id="tab-attendance-lbl">勤怠</span></button>
   <button class="tab-btn" id="tab-instructions" onclick="switchTab('instructions')">✉ <span id="tab-instructions-lbl">指示</span></button>
   <button class="tab-btn" id="tab-accounting" onclick="switchTab('accounting')">💰 <span id="tab-accounting-lbl">経理</span></button>
+  <button class="tab-btn" id="tab-line" onclick="switchTab('line')">💬 <span id="tab-line-lbl">LINE受信</span></button>
 </div>
 
 <!-- Dashboard / Orders View -->
@@ -634,6 +635,48 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 </div>
 
 <!-- Accounting View -->
+<!-- LINE受信タブ -->
+<div id="line-view" style="display:none;padding:16px;max-width:700px;margin:0 auto">
+
+  <!-- セットアップ状況バナー -->
+  <div id="line-setup-banner" style="background:#fff8e1;border:1px solid #ffc107;border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;display:none">
+    <div style="font-weight:700;color:#e65100;margin-bottom:6px">⚠️ セットアップ未完了</div>
+    <div id="line-setup-items" style="color:#555;line-height:1.8"></div>
+  </div>
+
+  <!-- Webhook URL表示 -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">LINE WebhookのURL（LINEの設定画面に貼り付け）</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <code id="webhook-url-text" style="flex:1;background:var(--bg);padding:8px 12px;border-radius:8px;font-size:12px;color:var(--text);word-break:break-all"></code>
+      <button onclick="copyWebhookUrl()" style="background:#06c755;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer;flex-shrink:0">コピー</button>
+    </div>
+  </div>
+
+  <!-- 許可ユーザー管理 -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px">👤 送信を許可するユーザー</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">LINEのユーザーID（Uから始まる文字列）を登録してください。未登録の場合は全員受信になります。</div>
+    <div id="line-allowed-list" style="margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px">
+      <input id="line-userid-input" type="text" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text)">
+      <button onclick="addAllowedUser()" style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer">追加</button>
+    </div>
+  </div>
+
+  <!-- 受信ログ -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-weight:700;font-size:14px">📨 受信ログ</div>
+      <button onclick="initLineTab()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--muted);cursor:pointer">更新</button>
+    </div>
+    <div id="line-log-list">
+      <div style="text-align:center;color:var(--muted);font-size:13px;padding:24px 0">受信メッセージはここに表示されます</div>
+    </div>
+  </div>
+
+</div>
+
 <div id="accounting-view" style="display:none">
   <div class="acc-sub-nav">
     <button class="acc-sub-btn active" id="acc-sub-summary" onclick="switchAccSub('summary')">📊 収支</button>
@@ -1814,7 +1857,7 @@ function switchTab(tab) {
     return;
   }
   currentTab = tab;
-  ['orders','projects','customers','monthly','schedule','attendance','instructions','accounting'].forEach(name => {
+  ['orders','projects','customers','monthly','schedule','attendance','instructions','accounting','line'].forEach(name => {
     document.getElementById('tab-'+name).classList.toggle('active', name===tab);
   });
   document.getElementById('dashboard-view').style.display    = tab==='orders'        ? 'block' : 'none';
@@ -1825,6 +1868,7 @@ function switchTab(tab) {
   document.getElementById('attendance-view').style.display   = tab==='attendance'    ? 'block' : 'none';
   document.getElementById('instructions-view').style.display = tab==='instructions'  ? 'block' : 'none';
   document.getElementById('accounting-view').style.display   = tab==='accounting'    ? 'block' : 'none';
+  document.getElementById('line-view').style.display         = tab==='line'          ? 'block' : 'none';
   document.getElementById('search-bar').style.display        = tab==='orders'        ? 'block' : 'none';
   document.querySelector('.fab').style.display = (tab==='orders'||tab==='schedule'||tab==='projects') ? 'flex' : 'none';
   if (tab==='projects')     initProjectsTab();
@@ -1834,6 +1878,7 @@ function switchTab(tab) {
   if (tab==='attendance')   initAttendanceView();
   if (tab==='instructions') initInstructionsView();
   if (tab==='accounting')   initAccountingView();
+  if (tab==='line')         initLineTab();
 }
 
 // ── API (将来用・現在は未使用) ───────────────────────────────────
@@ -4834,6 +4879,7 @@ function renderCurrentTab() {
   else if (tab === 'attendance')   initAttendanceView();
   else if (tab === 'instructions') initInstructionsView();
   else if (tab === 'accounting')   initAccountingView();
+  else if (tab === 'line')         initLineTab();
   else                             loadOrders();
 }
 
@@ -8914,6 +8960,138 @@ function confirmCsvImport() {
 }
 
 // ── フェーズ別AI担当者窓口 ──────────────────────────────────
+// ── LINE受信タブ ──────────────────────────────────────────────────
+
+const LS_LINE_LOGS    = 'ago_line_logs';
+const LS_LINE_ALLOWED = 'ago_line_allowed_users';
+
+const LINE_STATUS_LABEL = {
+  received:   { text: '受信済',   color: '#3b82f6' },
+  blocked:    { text: '拒否',     color: '#94a3b8' },
+  processing: { text: 'AI処理中', color: '#f59e0b' },
+  registered: { text: '案件登録済', color: '#06c755' },
+  error:      { text: 'エラー',   color: '#ef4444' }
+};
+
+async function initLineTab() {
+  // Webhook URL表示
+  const urlEl = document.getElementById('webhook-url-text');
+  if (urlEl) urlEl.textContent = location.origin + '/line-webhook.php';
+
+  // セットアップ状況確認（ローカルに設定フラグを持つ）
+  const apiKeyOk  = !!localStorage.getItem('ago_line_apikey_set');
+  const tokenOk   = !!localStorage.getItem('ago_line_token_set');
+  const banner    = document.getElementById('line-setup-banner');
+  const setupItems = document.getElementById('line-setup-items');
+  const missing = [];
+  if (!apiKeyOk)  missing.push('・ AnthropicのAPIキー（AIで自動清書するために必要）');
+  if (!tokenOk)   missing.push('・ LINEチャンネルアクセストークン（LINEを受信するために必要）');
+  if (missing.length > 0 && banner) {
+    banner.style.display = 'block';
+    setupItems.innerHTML = missing.join('<br>') + '<br><span style="color:#888;font-size:11px">→ AGOオフィスでの設定後に動作します</span>';
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
+
+  // 許可ユーザーリスト描画
+  renderAllowedUsers();
+
+  // 受信ログ描画（KVストアから取得）
+  await renderLineLogs();
+}
+
+function renderAllowedUsers() {
+  const allowed = lsLoad(LS_LINE_ALLOWED);
+  const el = document.getElementById('line-allowed-list');
+  if (!el) return;
+  if (!allowed || allowed.length === 0) {
+    el.innerHTML = '<div style="font-size:12px;color:#f59e0b;padding:6px 0">未登録（全員からの受信を許可中）</div>';
+    return;
+  }
+  el.innerHTML = allowed.map((uid, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:13px;font-family:monospace;color:var(--text)">${uid}</span>
+      <button onclick="removeAllowedUser(${i})" style="background:none;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer">削除</button>
+    </div>`).join('');
+}
+
+function addAllowedUser() {
+  const input = document.getElementById('line-userid-input');
+  const uid   = (input.value || '').trim();
+  if (!uid.startsWith('U') || uid.length < 10) {
+    showToast('LINEユーザーIDはUから始まる文字列です');
+    return;
+  }
+  const allowed = lsLoad(LS_LINE_ALLOWED) || [];
+  if (allowed.includes(uid)) { showToast('すでに登録済みです'); return; }
+  allowed.push(uid);
+  lsSave(LS_LINE_ALLOWED, allowed);
+  input.value = '';
+  renderAllowedUsers();
+  showToast('追加しました');
+}
+
+function removeAllowedUser(index) {
+  const allowed = lsLoad(LS_LINE_ALLOWED) || [];
+  allowed.splice(index, 1);
+  lsSave(LS_LINE_ALLOWED, allowed);
+  renderAllowedUsers();
+  showToast('削除しました');
+}
+
+async function renderLineLogs() {
+  const el = document.getElementById('line-log-list');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:16px">読み込み中...</div>';
+
+  // KVストアから取得を試みる（失敗時はlocalStorageにフォールバック）
+  let logs = [];
+  try {
+    const res  = await fetch('api.php', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-AGO-Token':'system002-od'},
+      body: JSON.stringify({action:'kv_get', key: LS_LINE_LOGS})
+    });
+    const data = await res.json();
+    logs = JSON.parse(data.value || '[]') || [];
+  } catch(e) {
+    logs = lsLoad(LS_LINE_LOGS) || [];
+  }
+
+  if (logs.length === 0) {
+    el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:24px 0">受信メッセージはここに表示されます</div>';
+    return;
+  }
+
+  const allProjects = lsLoad('ago_projects') || [];
+  el.innerHTML = logs.map(log => {
+    const st     = LINE_STATUS_LABEL[log.status] || { text: log.status, color: '#94a3b8' };
+    const proj   = log.project_id ? allProjects.find(p => p.id == log.project_id) : null;
+    const srcIcon = log.source === 'group' ? '👥' : '👤';
+    return `
+    <div style="padding:12px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+        <div style="font-size:11px;color:var(--muted)">${srcIcon} ${log.ts} <span style="font-family:monospace">${(log.userId||'').slice(-8)}</span></div>
+        <span style="background:${st.color};color:#fff;font-size:10px;padding:2px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0">${st.text}</span>
+      </div>
+      <div style="font-size:13px;color:var(--text);background:var(--bg);border-radius:8px;padding:8px 12px;margin-bottom:6px;white-space:pre-wrap">${escapeHtml(log.text || '')}</div>
+      ${log.error ? `<div style="font-size:11px;color:#ef4444">⚠️ ${escapeHtml(log.error)}</div>` : ''}
+      ${proj ? `<div style="font-size:12px;color:#06c755;cursor:pointer" onclick="switchTab('projects');setTimeout(()=>renderPipelineDetail(${log.project_id}),100)">✅ 案件登録済：${escapeHtml(proj.name)} → タップして確認・修正</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function copyWebhookUrl() {
+  const url = location.origin + '/line-webhook.php';
+  navigator.clipboard.writeText(url).then(() => showToast('コピーしました'));
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── ここまでLINEタブ ──────────────────────────────────────────────
+
 const AI_PHASE_CONFIG = {
   'reception': {
     icon: '📋', name: '受注管理AI', dept: '総務部 受注管理課',
