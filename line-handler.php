@@ -23,6 +23,7 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     $estimates = json_decode(ago_kv_get('ago_estimates')       ?? '[]', true) ?: [];
     $invoices  = json_decode(ago_kv_get('ago_invoices')        ?? '[]', true) ?: [];
     $pos       = json_decode(ago_kv_get('ago_purchase_orders') ?? '[]', true) ?: [];
+    $orders    = json_decode(ago_kv_get('ago_orders')          ?? '[]', true) ?: [];
 
     // ── 3. ユーザー別会話履歴（最新10往復） ────────────────────────
     $conv_key  = 'ago_line_conv_' . $userId;
@@ -64,6 +65,26 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
         $proj_list[] = $entry;
     }
 
+    // 資材注文サマリー（進行中のみ）
+    $order_list = [];
+    foreach (array_slice($orders, 0, 40) as $o) {
+        if (in_array($o['status'] ?? '', ['delivered','cancel_customer','cancel_factory'])) continue;
+        $proj_name = '';
+        if (!empty($o['project_link'])) {
+            foreach ($projects as $p) {
+                if ((string)$p['id'] === (string)$o['project_link']) { $proj_name = $p['name'] ?? ''; break; }
+            }
+        }
+        $order_list[] = [
+            'id'      => $o['id'],
+            'code'    => $o['order_code'] ?? '',
+            'product' => $o['product'] ?? '',
+            'status'  => $o['status'] ?? '',
+            'project' => $proj_name,
+            'qty'     => $o['qty'] ?? 1,
+        ];
+    }
+
     // 今月売上
     $ym            = date('Y-m');
     $monthly_sales = array_sum(array_map(
@@ -72,10 +93,12 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     ));
 
     // ── 5. システムプロンプト ───────────────────────────────────────
-    $data_json = json_encode($proj_list, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    $data_json   = json_encode($proj_list,   JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    $orders_json = json_encode($order_list,  JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     $system = <<<SYS
 あなたはAGO SYSTEM MANAGER（看板・LED・電気工事・内装工事会社）のLINE AIです。
 スタッフからのLINEを受け取り、業務システムを操作しながら何でも自律的に対応します。
+会話の文脈・言い回し・状況から意図を正確に読み取ってください。
 
 ## 送信者
 {$user_name}
@@ -89,13 +112,22 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 ## 現在の業務データ（書類URLつき）
 {$data_json}
 
-## フェーズ値
+## 資材注文データ（進行中のみ）
+{$orders_json}
+
+## 案件フェーズ値
 受付=reception / 設計中=designing / 見積中=estimating / 契約中=contracting /
 発注中=ordering / 施工調整中=construction-adj / 施工中=construction /
 完工(請求書未作成)=completion-pending / 請求済=invoiced / キャンセル=cancelled
 
+## 資材注文ステータス値
+受注済み=received / 中国発注済み=ordered_china / 工場確認済み=factory_confirmed /
+配送準備中=shipping_prep / 配送中=in_transit / 配送完了=delivered /
+キャンセル(顧客都合)=cancel_customer / キャンセル(工場都合)=cancel_factory
+
 ## できること
 - 案件の登録・フェーズ更新・情報照会
+- 資材注文のステータス更新（「届いた」「来た」「配送中」「キャンセル」など自然な言葉からステータスを推定）
 - 見積書・請求書・発注書の作成（明細は内容から自動生成）
 - 書類URLをreplyに含める（送信者がお客さんへ転送）
 - 複数案件・複数書類を一括処理（「A社B社C社の請求書URL」など）
@@ -108,6 +140,7 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
   "actions": [
     // 操作が必要な場合のみ記載。不要なら []
     // {"type":"update_phase","project_id":123,"phase":"designing"}
+    // {"type":"update_order_status","order_id":123,"status":"delivered"}
     // {"type":"create_project","name":"案件名","client_name":"顧客名","project_type":"signage","location":"住所","memo":"メモ"}
     // {"type":"create_estimate","project_id":123,"client_name":"顧客名","items":[{"description":"品名","qty":1,"unit":"式","unit_price":1000000}]}
     // {"type":"create_invoice","project_id":123,"client_name":"顧客名","items":[{"description":"品名","qty":1,"unit":"式","unit_price":1000000}]}
@@ -120,8 +153,10 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 - JSON以外は返さない
 - 書類URLはreplyにそのまま貼る（お客さん転送用）
 - 金額は税抜で受け取り10%消費税を自動計算
-- 案件は名前・顧客名・IDで柔軟に特定する
+- 案件・注文は名前・顧客名・現場名・IDで柔軟に特定する
+- 「届いた」「来た」→ delivered、「配送中」→ in_transit、「工場確認」→ factory_confirmed など文脈から推定
 - 明細が不明な場合は内容・金額から合理的に推測して生成
+- 対象が複数あって特定できない場合は選択肢を返してユーザーに確認する
 SYS;
 
     // ── 6. Claude API呼び出し ───────────────────────────────────────
@@ -166,6 +201,23 @@ function execute_action($action, $userId, $users_map, $ts) {
     $type = $action['type'] ?? '';
 
     switch ($type) {
+
+        case 'update_order_status':
+            $oid    = (int)($action['order_id'] ?? 0);
+            $status = $action['status'] ?? '';
+            if (!$oid || !$status) break;
+            $orders = json_decode(ago_kv_get('ago_orders') ?? '[]', true) ?: [];
+            foreach ($orders as &$o) {
+                if ($o['id'] == $oid) {
+                    $o['status']     = $status;
+                    $o['updated_at'] = $ts;
+                    $o['_logs'][]    = ['status' => $status, 'updated_by' => 'LINE_AI', 'created_at' => $ts, 'note' => ''];
+                    break;
+                }
+            }
+            unset($o);
+            ago_kv_set('ago_orders', json_encode($orders, JSON_UNESCAPED_UNICODE));
+            break;
 
         case 'register_name':
             $name = trim($action['name'] ?? '');
