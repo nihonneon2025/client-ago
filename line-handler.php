@@ -17,6 +17,7 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     // ── 1. ユーザー名解決 ───────────────────────────────────────────
     $users_map = json_decode(ago_kv_get('ago_line_users') ?? '{}', true) ?: [];
     $user_name = $users_map[$userId] ?? ('スタッフ(' . substr($userId, -6) . ')');
+    $kanno_id  = defined('KANNO_LINE_ID') ? KANNO_LINE_ID : '';
 
     // ── 2. 全業務データ読込 ─────────────────────────────────────────
     $projects  = json_decode(ago_kv_get('ago_projects')        ?? '[]', true) ?: [];
@@ -190,7 +191,7 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     // {"type":"register_name","name":"登録する名前"}
     // {"type":"set_schedule","date":"2026-05-17","entries":[{"time":"10:00","desc":"田中建設の現場"},{"time":"14:00","desc":"打ち合わせ"}]}
     // {"type":"clear_schedule","date":"2026-05-17"}
-    // {"type":"confirm_pending_actions","confirmed":[1,3],"declined":[2]}  // 確認待ちを承認/却下して即実行
+    // {"type":"confirm_pending_actions","confirmed":[1,3],"declined":[{"no":2,"reason":"理由テキスト（省略可）"}]}  // 確認待ちを承認/却下。declinedにはno必須、reasonは菅野さんがNOの理由を添えた場合のみ
   ]
 }
 
@@ -205,15 +206,26 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 - 「明日は〇〇の現場」「今日の午後から打ち合わせ」などはset_scheduleで保存する
 - 日付が省略された場合は文脈から推定（「明日」→ tomorrow の日付）
 - 「今日の予定は？」「今週どうだっけ？」はスケジュールデータを参照してreplyに書く
-- 「確認待ちアクション」がある状態で菅野さんが「【1】はい」「【2】まだ」のように返答したら confirm_pending_actions を使う
-- 「全部はい」「全部OK」→ 全番号を confirmed に。「全部まだ」→ 全番号を declined に
-- 承認した番号の実行結果をreplyで伝える（例:「【1】田中建設の資材を配送完了に更新しました」）
+## 確認フロー（最重要）
+以下のアクションは必ず菅野さんの確認を経てから実行されます。
 
-## 確認フロー（重要）
-以下のアクションは必ず菅野さんの確認を経てから実行されます。該当するアクションをactionsに入れた場合、replyには「菅野さんに確認を送りました」と書く：
+### 確認が必要なアクション
 - create_estimate / create_invoice / create_purchase_order: 金銭書類のため毎回確認
-- update_phase: フェーズ変更は業務上の重要判断のため毎回確認
-- update_order_status / create_project: 最初の3回は確認あり（4回目以降は自動実行）
+- update_phase: フェーズ変更は業務判断のため毎回確認
+- update_order_status / create_project: 学習中は確認あり（学習完了後は自動実行）
+
+### 確認が必要なアクションをactionsに入れた場合のreplyルール
+- 送信者がスタッフの場合: 「菅野社長に確認を取ります。承認後すぐに作業します」とreplyに書く
+- 送信者が菅野さん本人の場合: 「確認のためもう一度確認を取ります」とreplyに書く
+
+### 菅野さんからの承認/却下返信を受け取った場合
+- 確認待ちアクションがある状態で「OK」「はい」「【1】OK」などが来たら confirm_pending_actions を使う
+- confirmed: 承認した番号のリスト
+- declined: 却下した番号とその理由。形式: [{"no":2,"reason":"理由（省略可）"}]
+- 「全部OK」「全部はい」→ 全番号をconfirmedに
+- 「全部NO」→ 全番号をdeclinedに（reason省略）
+- 「【2】NO 資材確認が先」→ declined: [{"no":2,"reason":"資材確認が先"}]
+- replyには「承認した操作を実行しました。スタッフへ通知します」のように書く
 SYS;
 
     // ── 6. Claude API呼び出し ───────────────────────────────────────
@@ -257,7 +269,7 @@ SYS;
     }
 
     foreach ($to_execute as $action) {
-        execute_action($action, $userId, $users_map, $ts);
+        execute_action($action, $userId, $users_map, $ts, $line_token, $kanno_id);
     }
 
     if ($to_confirm) {
@@ -269,7 +281,6 @@ SYS;
         $existing_data['generated_at'] = date('Y-m-d H:i:s');
         $max_no = count($existing_data['actions']) > 0 ? max(array_column($existing_data['actions'], 'no')) : 0;
 
-        $kanno_id = defined('KANNO_LINE_ID') ? KANNO_LINE_ID : '';
         $is_kanno = ($userId === $kanno_id);
 
         $conf_lines = [];
@@ -283,14 +294,15 @@ SYS;
                 ? '※金銭書類のため毎回確認'
                 : '※学習中（' . ($total + 1) . '回目）';
             $existing_data['actions'][] = [
-                'no'     => $max_no,
-                'type'   => $type,
-                'id'     => (int)($action['project_id'] ?? $action['order_id'] ?? 0),
-                'value'  => $action['phase'] ?? $action['status'] ?? '',
-                'label'  => $readable,
-                'source' => 'line',
-                'sender' => $user_name,
-                'raw'    => $action,
+                'no'           => $max_no,
+                'type'         => $type,
+                'id'           => (int)($action['project_id'] ?? $action['order_id'] ?? 0),
+                'value'        => $action['phase'] ?? $action['status'] ?? '',
+                'label'        => $readable,
+                'source'       => 'line',
+                'sender'       => $user_name,
+                'requester_id' => $userId,    // 承認/却下後の通知先
+                'raw'          => $action,
             ];
             $conf_lines[] = "【{$max_no}】{$readable}\n　　{$ai_note}";
         }
@@ -299,14 +311,15 @@ SYS;
         if ($kanno_id && $line_token) {
             $from        = $is_kanno ? '菅野さん本人' : $user_name . 'さん';
             $quoted_text = '「' . mb_substr($text, 0, 40) . (mb_strlen($text) > 40 ? '…' : '') . '」';
-            $push_msg    = "📋 LINE AI 確認依頼\n"
+            $no_example  = count($conf_lines) > 0 ? '【' . $existing_data['actions'][array_key_last($existing_data['actions'])]['no'] . '】' : '【1】';
+            $push_msg    = "📋 {$from}からの依頼\n"
                 . "━━━━━━━━━━━━━\n"
-                . "送信者: {$from}\n"
-                . "メッセージ: {$quoted_text}\n"
+                . $quoted_text . "\n"
                 . "━━━━━━━━━━━━━\n"
-                . "以下を実行していいですか？\n\n"
                 . implode("\n\n", $conf_lines) . "\n\n"
-                . "返信例: 「【1】はい 【2】まだ」";
+                . "・「{$no_example}OK」→ 実行して" . ($is_kanno ? '完了' : $from . 'に完了通知') . "\n"
+                . "・「{$no_example}NO」→ " . ($is_kanno ? '中止' : $from . 'に却下通知') . "\n"
+                . "・「{$no_example}NO 理由」→ 理由も" . ($is_kanno ? '記録' : $from . 'に伝達') . "\n";
             line_push_msg($line_token, $kanno_id, $push_msg);
         }
     }
@@ -330,7 +343,7 @@ SYS;
 }
 
 // ── アクション実行 ────────────────────────────────────────────────
-function execute_action($action, $userId, $users_map, $ts) {
+function execute_action($action, $userId, $users_map, $ts, $line_token = '', $kanno_id = '') {
     $type = $action['type'] ?? '';
 
     switch ($type) {
@@ -507,67 +520,93 @@ function execute_action($action, $userId, $users_map, $ts) {
             break;
 
         case 'confirm_pending_actions':
-            $confirmed = $action['confirmed'] ?? [];
-            if (!$confirmed) break;
+            $confirmed    = $action['confirmed'] ?? [];
+            $declined_raw = $action['declined']  ?? [];
+            // declined形式: [{"no":2,"reason":"理由"}] または後方互換の [2]
+            $declined_map = [];
+            foreach ($declined_raw as $d) {
+                if (is_array($d)) {
+                    $declined_map[(int)$d['no']] = $d['reason'] ?? '';
+                } else {
+                    $declined_map[(int)$d] = '';
+                }
+            }
+            $declined_nos = array_keys($declined_map);
+
+            if (!$confirmed && !$declined_nos) break;
 
             $praw = ago_kv_get('ago_pending_actions');
             if (!$praw) break;
             $pdata = json_decode($praw, true);
             if (!$pdata || empty($pdata['actions'])) break;
 
+            $all_actions  = $pdata['actions']; // 学習・通知用に元リストを保持
             $executed_nos = [];
-            $ecounts    = json_decode(ago_kv_get('ago_action_exec_counts') ?? '{}', true) ?: [];
-            $learn_types = ['update_order_status','create_project'];
 
-            foreach ($pdata['actions'] as $pa) {
-                if (!in_array($pa['no'], $confirmed)) continue;
+            foreach ($all_actions as $pa) {
+                $pano = $pa['no'];
 
-                if (!empty($pa['raw'])) {
-                    // rawアクションをそのまま実行（create_estimate/invoice等、全タイプ対応）
-                    execute_action($pa['raw'], $userId, $users_map, $ts);
-                    $atype = $pa['raw']['type'] ?? '';
-                    if (in_array($atype, $learn_types)) {
-                        $ecounts[$atype] = ($ecounts[$atype] ?? 0) + 1;
-                        ago_kv_set('ago_action_exec_counts', json_encode($ecounts, JSON_UNESCAPED_UNICODE));
-                    }
-                } elseif ($pa['type'] === 'update_order_status') {
-                    // 旧形式フォールバック
-                    $oid    = (int)$pa['id'];
-                    $status = $pa['value'];
-                    $ords   = json_decode(ago_kv_get('ago_orders') ?? '[]', true) ?: [];
-                    foreach ($ords as &$o) {
-                        if ($o['id'] == $oid) {
-                            $o['status']     = $status;
-                            $o['updated_at'] = $ts;
-                            $o['_logs'][]    = ['status' => $status, 'updated_by' => 'LINE_AI(菅野さん承認)', 'created_at' => $ts, 'note' => ''];
-                            break;
+                if (in_array($pano, $confirmed)) {
+                    // 実行
+                    if (!empty($pa['raw'])) {
+                        execute_action($pa['raw'], $userId, $users_map, $ts, $line_token, $kanno_id);
+                    } elseif ($pa['type'] === 'update_order_status') {
+                        $oid    = (int)$pa['id'];
+                        $status = $pa['value'];
+                        $ords   = json_decode(ago_kv_get('ago_orders') ?? '[]', true) ?: [];
+                        foreach ($ords as &$o) {
+                            if ($o['id'] == $oid) {
+                                $o['status']     = $status;
+                                $o['updated_at'] = $ts;
+                                $o['_logs'][]    = ['status' => $status, 'updated_by' => 'LINE_AI(菅野さん承認)', 'created_at' => $ts, 'note' => ''];
+                                break;
+                            }
                         }
-                    }
-                    unset($o);
-                    ago_kv_set('ago_orders', json_encode($ords, JSON_UNESCAPED_UNICODE));
-                } elseif ($pa['type'] === 'update_phase') {
-                    $pid   = (int)$pa['id'];
-                    $phase = $pa['value'];
-                    $projs = json_decode(ago_kv_get('ago_projects') ?? '[]', true) ?: [];
-                    $old   = '';
-                    foreach ($projs as &$p) {
-                        if ($p['id'] == $pid) {
-                            $old = $p['phase'] ?? '';
-                            $p['phase']      = $phase;
-                            $p['updated_at'] = $ts;
-                            break;
+                        unset($o);
+                        ago_kv_set('ago_orders', json_encode($ords, JSON_UNESCAPED_UNICODE));
+                    } elseif ($pa['type'] === 'update_phase') {
+                        $pid   = (int)$pa['id'];
+                        $phase = $pa['value'];
+                        $projs = json_decode(ago_kv_get('ago_projects') ?? '[]', true) ?: [];
+                        $old   = '';
+                        foreach ($projs as &$p) {
+                            if ($p['id'] == $pid) {
+                                $old = $p['phase'] ?? '';
+                                $p['phase']      = $phase;
+                                $p['updated_at'] = $ts;
+                                break;
+                            }
                         }
+                        unset($p);
+                        ago_kv_set('ago_projects', json_encode($projs, JSON_UNESCAPED_UNICODE));
+                        ago_project_log($pid, 'LINE_AI', "フェーズ変更(菅野さん承認): {$old} → {$phase}", $ts);
                     }
-                    unset($p);
-                    ago_kv_set('ago_projects', json_encode($projs, JSON_UNESCAPED_UNICODE));
-                    ago_project_log($pid, 'LINE_AI', "フェーズ変更(菅野さん承認): {$old} → {$phase}", $ts);
+
+                    $executed_nos[] = $pano;
+
+                    // スタッフへ完了通知（依頼者が菅野さん以外の場合）
+                    $requester_id = $pa['requester_id'] ?? '';
+                    if ($requester_id && $requester_id !== $kanno_id && $line_token) {
+                        line_push_msg($line_token, $requester_id,
+                            "✅ {$pa['label']}\n菅野社長に承認いただきました。作業が完了しました。");
+                    }
+
+                } elseif (in_array($pano, $declined_nos)) {
+                    // スタッフへ却下通知（依頼者が菅野さん以外の場合）
+                    $requester_id = $pa['requester_id'] ?? '';
+                    $reason       = $declined_map[$pano] ?? '';
+                    if ($requester_id && $requester_id !== $kanno_id && $line_token) {
+                        $msg = "❌ {$pa['label']}\n菅野社長に確認しましたが、今回は見送りとなりました。";
+                        if ($reason) $msg .= "\n理由: {$reason}";
+                        line_push_msg($line_token, $requester_id, $msg);
+                    }
                 }
-
-                $executed_nos[] = $pa['no'];
             }
 
-            if ($executed_nos) {
-                $remaining = array_values(array_filter($pdata['actions'], fn($a) => !in_array($a['no'], $executed_nos)));
+            // KVから処理済み（承認・却下）を削除
+            $done_nos = array_merge($executed_nos, $declined_nos);
+            if ($done_nos) {
+                $remaining = array_values(array_filter($pdata['actions'], fn($a) => !in_array($a['no'], $done_nos)));
                 if ($remaining) {
                     $pdata['actions'] = $remaining;
                     ago_kv_set('ago_pending_actions', json_encode($pdata, JSON_UNESCAPED_UNICODE));
@@ -577,19 +616,19 @@ function execute_action($action, $userId, $users_map, $ts) {
             }
 
             // 担当AIごとの学習データを更新（承認 / 却下を記録）
-            $declined_nos = $action['declined'] ?? [];
-            $learn_updates = []; // [learn_key => [type => delta]]
-            foreach ($pdata['actions'] as $pa) {
-                $atype      = $pa['raw']['type'] ?? $pa['type'];
-                $src        = $pa['source'] ?? 'line';
-                $learn_key  = 'ago_ai_learning_' . $src;
+            $learn_updates = [];
+            foreach ($all_actions as $pa) {
+                $pano      = $pa['no'];
+                $atype     = $pa['raw']['type'] ?? $pa['type'];
+                $src       = $pa['source'] ?? 'line';
+                $learn_key = 'ago_ai_learning_' . $src;
                 if (!isset($learn_updates[$learn_key])) $learn_updates[$learn_key] = [];
                 if (!isset($learn_updates[$learn_key][$atype])) {
                     $learn_updates[$learn_key][$atype] = ['confirmed' => 0, 'declined' => 0];
                 }
-                if (in_array($pa['no'], $confirmed)) {
+                if (in_array($pano, $confirmed)) {
                     $learn_updates[$learn_key][$atype]['confirmed']++;
-                } elseif (in_array($pa['no'], $declined_nos)) {
+                } elseif (in_array($pano, $declined_nos)) {
                     $learn_updates[$learn_key][$atype]['declined']++;
                 }
             }
