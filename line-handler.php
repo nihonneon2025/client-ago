@@ -205,6 +205,12 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 - 「確認待ちアクション」がある状態で菅野さんが「【1】はい」「【2】まだ」のように返答したら confirm_pending_actions を使う
 - 「全部はい」「全部OK」→ 全番号を confirmed に。「全部まだ」→ 全番号を declined に
 - 承認した番号の実行結果をreplyで伝える（例:「【1】田中建設の資材を配送完了に更新しました」）
+
+## 確認フロー（重要）
+以下のアクションは必ず菅野さんの確認を経てから実行されます。該当するアクションをactionsに入れた場合、replyには「菅野さんに確認を送りました」と書く：
+- create_estimate / create_invoice / create_purchase_order: 金銭書類のため毎回確認
+- update_phase: フェーズ変更は業務上の重要判断のため毎回確認
+- update_order_status / create_project: 最初の3回は確認あり（4回目以降は自動実行）
 SYS;
 
     // ── 6. Claude API呼び出し ───────────────────────────────────────
@@ -221,9 +227,78 @@ SYS;
     $reply_msg = $parsed['reply'] ?? 'すみません、処理できませんでした。もう一度お試しください。';
     $actions   = $parsed['actions'] ?? [];
 
-    // ── 7. アクション実行 ───────────────────────────────────────────
+    // ── 7. アクション分類（即実行 vs 確認キュー） ────────────────────
+    $CONFIRM_ALWAYS   = ['create_estimate','create_invoice','create_purchase_order','update_phase'];
+    $CONFIRM_LEARNING = ['update_order_status','create_project'];
+    $LEARN_THRESHOLD  = 3;
+    $NO_CONFIRM       = ['register_name','set_schedule','clear_schedule','confirm_pending_actions'];
+
+    $exec_counts = json_decode(ago_kv_get('ago_action_exec_counts') ?? '{}', true) ?: [];
+
+    $to_execute = [];
+    $to_confirm = [];
+
     foreach ($actions as $action) {
+        $type = $action['type'] ?? '';
+        if (in_array($type, $NO_CONFIRM) || $type === '') {
+            $to_execute[] = $action;
+        } elseif (in_array($type, $CONFIRM_ALWAYS)) {
+            $to_confirm[] = $action;
+        } elseif (in_array($type, $CONFIRM_LEARNING)) {
+            if (($exec_counts[$type] ?? 0) >= $LEARN_THRESHOLD) {
+                $to_execute[] = $action;
+            } else {
+                $to_confirm[] = $action;
+            }
+        } else {
+            $to_execute[] = $action;
+        }
+    }
+
+    foreach ($to_execute as $action) {
         execute_action($action, $userId, $users_map, $ts);
+        $type = $action['type'] ?? '';
+        if (in_array($type, $CONFIRM_LEARNING)) {
+            $exec_counts[$type] = ($exec_counts[$type] ?? 0) + 1;
+            ago_kv_set('ago_action_exec_counts', json_encode($exec_counts, JSON_UNESCAPED_UNICODE));
+        }
+    }
+
+    if ($to_confirm) {
+        $existing_raw  = ago_kv_get('ago_pending_actions') ?: '';
+        $existing_data = $existing_raw ? json_decode($existing_raw, true) : null;
+        if (!$existing_data || ($existing_data['expires'] ?? '') < date('Y-m-d')) {
+            $existing_data = ['generated_at' => '', 'expires' => date('Y-m-d', strtotime('+1 day')), 'actions' => []];
+        }
+        $existing_data['generated_at'] = date('Y-m-d H:i:s');
+        $max_no = count($existing_data['actions']) > 0 ? max(array_column($existing_data['actions'], 'no')) : 0;
+
+        $conf_lines = [];
+        foreach ($to_confirm as $action) {
+            $max_no++;
+            $type   = $action['type'] ?? '';
+            $summary = action_summary($action);
+            $reason  = in_array($type, $CONFIRM_ALWAYS)
+                ? '（金銭・要確認）'
+                : '（' . (($exec_counts[$type] ?? 0) + 1) . '/' . $LEARN_THRESHOLD . '回目・学習中）';
+            $existing_data['actions'][] = [
+                'no'    => $max_no,
+                'type'  => $type,
+                'id'    => (int)($action['project_id'] ?? $action['order_id'] ?? 0),
+                'value' => $action['phase'] ?? $action['status'] ?? '',
+                'label' => $summary . $reason,
+                'raw'   => $action,
+            ];
+            $conf_lines[] = "【{$max_no}】{$summary}";
+        }
+        ago_kv_set('ago_pending_actions', json_encode($existing_data, JSON_UNESCAPED_UNICODE));
+
+        $kanno_id = defined('KANNO_LINE_ID') ? KANNO_LINE_ID : '';
+        if ($kanno_id && $line_token) {
+            $who      = ($userId === $kanno_id) ? '' : "（{$user_name}より）";
+            $push_msg = "【確認依頼{$who}】\n\n" . implode("\n", $conf_lines) . "\n\n「【1】はい 【2】まだ」で返信してください";
+            line_push_msg($line_token, $kanno_id, $push_msg);
+        }
     }
 
     // ── 8. 会話履歴保存（ユーザーごと・最新20件=10往復） ───────────
@@ -431,10 +506,22 @@ function execute_action($action, $userId, $users_map, $ts) {
             if (!$pdata || empty($pdata['actions'])) break;
 
             $executed_nos = [];
+            $ecounts    = json_decode(ago_kv_get('ago_action_exec_counts') ?? '{}', true) ?: [];
+            $learn_types = ['update_order_status','create_project'];
+
             foreach ($pdata['actions'] as $pa) {
                 if (!in_array($pa['no'], $confirmed)) continue;
 
-                if ($pa['type'] === 'update_order_status') {
+                if (!empty($pa['raw'])) {
+                    // rawアクションをそのまま実行（create_estimate/invoice等、全タイプ対応）
+                    execute_action($pa['raw'], $userId, $users_map, $ts);
+                    $atype = $pa['raw']['type'] ?? '';
+                    if (in_array($atype, $learn_types)) {
+                        $ecounts[$atype] = ($ecounts[$atype] ?? 0) + 1;
+                        ago_kv_set('ago_action_exec_counts', json_encode($ecounts, JSON_UNESCAPED_UNICODE));
+                    }
+                } elseif ($pa['type'] === 'update_order_status') {
+                    // 旧形式フォールバック
                     $oid    = (int)$pa['id'];
                     $status = $pa['value'];
                     $ords   = json_decode(ago_kv_get('ago_orders') ?? '[]', true) ?: [];
@@ -448,7 +535,6 @@ function execute_action($action, $userId, $users_map, $ts) {
                     }
                     unset($o);
                     ago_kv_set('ago_orders', json_encode($ords, JSON_UNESCAPED_UNICODE));
-
                 } elseif ($pa['type'] === 'update_phase') {
                     $pid   = (int)$pa['id'];
                     $phase = $pa['value'];
@@ -470,7 +556,6 @@ function execute_action($action, $userId, $users_map, $ts) {
                 $executed_nos[] = $pa['no'];
             }
 
-            // 実行済みを pending から除去（残りがあれば保持・なければクリア）
             if ($executed_nos) {
                 $remaining = array_values(array_filter($pdata['actions'], fn($a) => !in_array($a['no'], $executed_nos)));
                 if ($remaining) {
@@ -485,6 +570,39 @@ function execute_action($action, $userId, $users_map, $ts) {
 }
 
 // ── 内部ヘルパー ──────────────────────────────────────────────────
+
+function action_summary($action) {
+    $type = $action['type'] ?? '';
+    switch ($type) {
+        case 'create_estimate':
+            return '見積書作成（案件ID:' . ($action['project_id'] ?? '?') . ' / ' . ($action['client_name'] ?? '') . '）';
+        case 'create_invoice':
+            return '請求書作成（案件ID:' . ($action['project_id'] ?? '?') . ' / ' . ($action['client_name'] ?? '') . '）';
+        case 'create_purchase_order':
+            return '発注書作成（案件ID:' . ($action['project_id'] ?? '?') . ' / 発注先:' . ($action['client_name'] ?? '') . '）';
+        case 'update_phase':
+            return '案件フェーズ変更（ID:' . ($action['project_id'] ?? '?') . ' → ' . ($action['phase'] ?? '') . '）';
+        case 'update_order_status':
+            return '資材ステータス更新（ID:' . ($action['order_id'] ?? '?') . ' → ' . ($action['status'] ?? '') . '）';
+        case 'create_project':
+            return '案件登録（' . ($action['name'] ?? '') . ' / ' . ($action['client_name'] ?? '') . '）';
+        default:
+            return $type;
+    }
+}
+
+function line_push_msg($token, $userId, $message) {
+    $payload = ['to' => $userId, 'messages' => [['type' => 'text', 'text' => $message]]];
+    $ch = curl_init('https://api.line.me/v2/bot/message/push');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Authorization: Bearer ' . $token],
+        CURLOPT_TIMEOUT        => 10,
+    ]);
+    curl_exec($ch);
+    curl_close($ch);
+}
 
 function _set_phase($pid, $phase, $ts) {
     $projs = json_decode(ago_kv_get('ago_projects') ?? '[]', true) ?: [];
