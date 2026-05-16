@@ -486,6 +486,12 @@ body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!i
 /* ═══ カードリサイズ ═══ */
 .proj-pipeline-card{resize:horizontal;overflow:hidden;min-width:220px}
 .order-card{resize:horizontal;overflow:hidden;min-width:180px}
+/* ═══ 完了カード・D&D ═══ */
+.card-done{opacity:.42;filter:grayscale(.72)}
+.card-dragging{opacity:.35;transform:scale(.97);pointer-events:none}
+.card-drag-over{outline:2px dashed var(--primary);outline-offset:3px;border-radius:12px}
+.proj-pipeline-card[draggable=true],.order-card[draggable=true]{cursor:grab}
+.proj-pipeline-card[draggable=true]:active,.order-card[draggable=true]:active{cursor:grabbing}
 /* ═══ タブ折りたたみ ═══ */
 .tab-collapse-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:4px 8px;line-height:1;flex-shrink:0;transition:color .2s}
 .tab-collapse-btn:hover{color:var(--accent)}
@@ -1899,6 +1905,7 @@ function switchTab(tab) {
   document.getElementById('line-view').style.display         = tab==='line'          ? 'block' : 'none';
   document.getElementById('search-bar').style.display        = tab==='orders'        ? 'block' : 'none';
   document.querySelector('.fab').style.display = (tab==='orders'||tab==='schedule'||tab==='projects') ? 'flex' : 'none';
+  if (tab==='orders')       loadOrders();
   if (tab==='projects')     initProjectsTab();
   if (tab==='customers')    renderCustomerView();
   if (tab==='monthly')      renderMonthlyView();
@@ -1993,11 +2000,27 @@ function renderOrders() {
     grid.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><p>${t('noOrders')}</p></div>`;
     return;
   }
-  grid.innerHTML = orders.map(o => {
+  // 完了済みを末尾へ・カスタム順を適用
+  const orderCustomOrder = (() => { try { return JSON.parse(localStorage.getItem('ago_order_card_order')||'null'); } catch(e) { return null; } })();
+  const sortedOrders = [...orders].sort((a,b) => {
+    const aDone = TERMINAL_STATUSES.includes(a.status) ? 1 : 0;
+    const bDone = TERMINAL_STATUSES.includes(b.status) ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
+    if (orderCustomOrder) {
+      const ia = orderCustomOrder.indexOf(a.id), ib = orderCustomOrder.indexOf(b.id);
+      if (ia >= 0 && ib >= 0) return ia - ib;
+      if (ia >= 0) return -1;
+      if (ib >= 0) return 1;
+    }
+    return 0;
+  });
+
+  grid.innerHTML = sortedOrders.map(o => {
     const s = STATUSES[lang][o.status] || {label:o.status,color:'#666'};
     const date = o.updated_at ? o.updated_at.substring(0,10) : '';
     const stale = getStaleInfo(o);
-    const staleClass = stale ? 'order-card stale-'+stale : 'order-card';
+    const isDone = TERMINAL_STATUSES.includes(o.status);
+    const staleClass = (stale ? 'order-card stale-'+stale : 'order-card') + (isDone ? ' card-done' : '');
     const staleBadge = stale ? `<span class="stale-badge ${stale}">${stale==='crit'?'⚠️'+t('staleCrit'):'⏰'+t('staleWarn')}</span>` : '';
     // 中国発注ステータスバッジ
     const csKey = o.china_status || 'unordered';
@@ -2013,7 +2036,12 @@ function renderOrders() {
     })() : '';
     const projBadge = projName ? `<div style="background:rgba(99,102,241,.12);border-left:4px solid var(--primary);border-radius:0 8px 8px 0;padding:7px 12px;margin:8px 0 6px"><span style="font-size:16px;font-weight:800;color:var(--accent);letter-spacing:.3px">🏗 ${projName}</span></div>` : '';
     return `
-    <div class="${staleClass}" onclick="openDetail(${o.id})">
+    <div class="${staleClass}" data-id="${o.id}" draggable="true"
+      onclick="openDetail(${o.id})"
+      ondragstart="orderCardDragStart(event,${o.id})"
+      ondragend="orderCardDragEnd(event)"
+      ondragover="orderCardDragOver(event,${o.id})"
+      ondrop="orderCardDrop(event,${o.id})">
       ${staleBadge}
       <div class="order-card-top">
         <span class="order-code">${escHtml(o.order_code)}</span>
@@ -2784,6 +2812,22 @@ function renderProjectsTab() {
     return;
   }
 
+  // 完了フェーズを末尾へ・カスタム順を適用
+  const PROJ_DONE_PHASES = ['completed','invoiced','cancelled'];
+  const projCustomOrder = (() => { try { return JSON.parse(localStorage.getItem('ago_proj_card_order')||'null'); } catch(e) { return null; } })();
+  items.sort((a,b) => {
+    const aDone = PROJ_DONE_PHASES.includes(a.phase) ? 1 : 0;
+    const bDone = PROJ_DONE_PHASES.includes(b.phase) ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
+    if (projCustomOrder) {
+      const ia = projCustomOrder.indexOf(a.id), ib = projCustomOrder.indexOf(b.id);
+      if (ia >= 0 && ib >= 0) return ia - ib;
+      if (ia >= 0) return -1;
+      if (ib >= 0) return 1;
+    }
+    return 0;
+  });
+
   listBody.innerHTML = items.map(p => {
     const phaseLabel = PIPELINE_PHASE_LABELS[p.phase] || p.phase;
     const phaseClass = PIPELINE_PHASE_CLASSES[p.phase] || '';
@@ -2791,7 +2835,14 @@ function renderProjectsTab() {
     const staffNames = (p.staff || []).map(uid => USERS[uid]||uid).join(', ');
     const period = (p.start_date && p.end_date) ? `${p.start_date} 〜 ${p.end_date}` : (p.start_date || '未定');
     const estStr = p.estimate ? '¥'+parseInt(p.estimate).toLocaleString() : '';
-    return `<div class="proj-pipeline-card" onclick="openProjectsTabDetail(${p.id})" oncontextmenu="showProjectCtxMenu(event,${p.id});return false;">
+    const isDone = PROJ_DONE_PHASES.includes(p.phase);
+    return `<div class="proj-pipeline-card${isDone?' card-done':''}" data-id="${p.id}" draggable="true"
+      onclick="openProjectsTabDetail(${p.id})"
+      oncontextmenu="showProjectCtxMenu(event,${p.id});return false;"
+      ondragstart="projCardDragStart(event,${p.id})"
+      ondragend="projCardDragEnd(event)"
+      ondragover="projCardDragOver(event,${p.id})"
+      ondrop="projCardDrop(event,${p.id})">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <span style="font-weight:700;font-size:15px;flex:1">${escHtml(p.name)}</span>
         <span class="pipeline-badge ${phaseClass}" onclick="event.stopPropagation();showProjectCtxMenu(event,${p.id});return false;" style="cursor:pointer" title="タップでメニュー">${phaseLabel}</span>
@@ -3333,6 +3384,74 @@ function initColResize(table, storageKey) {
       }
     } catch(ex) {}
   }
+}
+
+// ── 施工項目カード D&D ────────────────────────────────────────
+let projDragId = null;
+function projCardDragStart(e, id) {
+  projDragId = id;
+  e.currentTarget.classList.add('card-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function projCardDragEnd(e) {
+  e.currentTarget.classList.remove('card-dragging');
+  document.querySelectorAll('.proj-pipeline-card.card-drag-over').forEach(el => el.classList.remove('card-drag-over'));
+}
+function projCardDragOver(e, id) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (projDragId !== id) {
+    document.querySelectorAll('.proj-pipeline-card.card-drag-over').forEach(el => el.classList.remove('card-drag-over'));
+    e.currentTarget.classList.add('card-drag-over');
+  }
+}
+function projCardDrop(e, targetId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('card-drag-over');
+  if (projDragId === null || projDragId === targetId) { projDragId = null; return; }
+  const cards = Array.from(document.querySelectorAll('#projects-list-body .proj-pipeline-card[data-id]'));
+  const ids = cards.map(c => Number(c.dataset.id));
+  const fromIdx = ids.indexOf(Number(projDragId)), toIdx = ids.indexOf(Number(targetId));
+  if (fromIdx < 0 || toIdx < 0) { projDragId = null; return; }
+  ids.splice(fromIdx, 1);
+  ids.splice(toIdx, 0, Number(projDragId));
+  try { localStorage.setItem('ago_proj_card_order', JSON.stringify(ids)); } catch(ex) {}
+  projDragId = null;
+  renderProjectsTab();
+}
+
+// ── 資材注文カード D&D ────────────────────────────────────────
+let orderDragId = null;
+function orderCardDragStart(e, id) {
+  orderDragId = id;
+  e.currentTarget.classList.add('card-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function orderCardDragEnd(e) {
+  e.currentTarget.classList.remove('card-dragging');
+  document.querySelectorAll('.order-card.card-drag-over').forEach(el => el.classList.remove('card-drag-over'));
+}
+function orderCardDragOver(e, id) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (orderDragId !== id) {
+    document.querySelectorAll('.order-card.card-drag-over').forEach(el => el.classList.remove('card-drag-over'));
+    e.currentTarget.classList.add('card-drag-over');
+  }
+}
+function orderCardDrop(e, targetId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('card-drag-over');
+  if (orderDragId === null || orderDragId === targetId) { orderDragId = null; return; }
+  const cards = Array.from(document.querySelectorAll('#order-grid [data-id]'));
+  const ids = cards.map(c => Number(c.dataset.id));
+  const fromIdx = ids.indexOf(Number(orderDragId)), toIdx = ids.indexOf(Number(targetId));
+  if (fromIdx < 0 || toIdx < 0) { orderDragId = null; return; }
+  ids.splice(fromIdx, 1);
+  ids.splice(toIdx, 0, Number(orderDragId));
+  try { localStorage.setItem('ago_order_card_order', JSON.stringify(ids)); } catch(ex) {}
+  orderDragId = null;
+  renderOrders();
 }
 
 // ── パイプライン案件モーダル ─────────────────────────────────
