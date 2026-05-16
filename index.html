@@ -448,6 +448,23 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
   .modal-overlay{align-items:center}
   .order-grid{padding-bottom:40px}
 }
+/* AI担当者窓口 */
+.ai-window{background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid #334155;border-radius:12px;padding:16px;margin:16px 0}
+.ai-window-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.ai-window-icon{font-size:22px}
+.ai-window-name{font-size:15px;font-weight:700;color:#e2e8f0}
+.ai-window-dept{font-size:11px;color:#64748b;margin-top:2px}
+.ai-window-role{font-size:12px;color:#94a3b8;margin-bottom:10px;line-height:1.5}
+.ai-window-caps{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
+.ai-window-cap{background:#1e3a5f;color:#93c5fd;font-size:11px;padding:3px 8px;border-radius:20px}
+.ai-window-input-row{display:flex;gap:8px;align-items:flex-end}
+.ai-window-input{flex:1;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 12px;font-size:13px;color:#e2e8f0;resize:none;font-family:inherit;line-height:1.5}
+.ai-window-input::placeholder{color:#475569}
+.ai-window-btn{background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600;flex-shrink:0}
+.ai-window-btn:hover{background:#2563eb}
+.ai-window-btn:disabled{background:#334155;color:#64748b;cursor:not-allowed}
+.ai-response{margin-top:12px;background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:12px;font-size:13px;color:#cbd5e1;white-space:pre-wrap;display:none;line-height:1.6}
+.ai-thinking{color:#64748b;font-style:italic}
 </style>
 </head>
 <body>
@@ -2800,6 +2817,9 @@ function renderPipelineDetail(id) {
         return `<span class="${cls}" style="font-size:10px;${style}">${PIPELINE_PHASE_LABELS[ph]}</span>`;
       }).join('')}
     </div>
+
+    <!-- AI担当者窓口 -->
+    ${renderAIWindow(proj.phase, proj.id)}
 
     <!-- クイック書類起票 -->
     <div style="margin:16px 0 8px;font-size:12px;color:var(--muted)">書類を起票する</div>
@@ -8885,6 +8905,121 @@ function confirmCsvImport() {
   if (errors.length) msg += '（スキップ ' + errors.length + '件）';
   showToast(msg);
   setTimeout(() => location.reload(), 1400);
+}
+
+// ── フェーズ別AI担当者窓口 ──────────────────────────────────
+const AI_PHASE_CONFIG = {
+  'reception': {
+    icon: '📋', name: '受注管理AI', dept: '総務部 受注管理課',
+    role: '新規案件の受付・登録・社内案件化を担当しています',
+    caps: ['案件情報を登録する', 'フェーズを次に進める', '担当者を割り当てる'],
+    context: 'あなたはAGOの総務部受注管理課のAIです。新規案件の受付・登録・社内案件化を担当します。AGOはLED・看板・電気工事・内装の取り付け業です。丁寧かつ簡潔に日本語で回答してください。'
+  },
+  'confirmed': {
+    icon: '📋', name: '受注管理AI', dept: '総務部 受注管理課',
+    role: '受注確定後の案件管理・次フェーズへの移行を担当しています',
+    caps: ['受注確定処理をする', 'フェーズを進める', '担当者に確認する'],
+    context: 'あなたはAGOの総務部受注管理課のAIです。受注確定後の案件管理を担当します。丁寧かつ簡潔に日本語で回答してください。'
+  },
+  'designing': {
+    icon: '📐', name: '図面・内装AI', dept: 'デザイン部',
+    role: '案件の種別に応じて図面起こしを担当しています',
+    caps: ['シート案件の図面を起こす', '内装案件の図面を起こす', '必要資材を確認する'],
+    context: 'あなたはAGOのデザイン部のAIです。看板シートおよび内装案件の図面作成を担当します。丁寧かつ簡潔に日本語で回答してください。'
+  },
+  'estimating': {
+    icon: '🧮', name: '積算見積AI', dept: 'デザイン部 積算見積担当',
+    role: '図面をもとに資材の拾い出し・原価計算を担当しています',
+    caps: ['資材リストを作る', '原価計算をする', '見積書の素案を作る'],
+    context: 'あなたはAGOのデザイン部積算見積担当のAIです。図面から資材を拾い出し原価計算をします。丁寧かつ簡潔に日本語で回答してください。'
+  },
+  'order-prep': {
+    icon: '📤', name: '発注管理AI', dept: '総務部 発注管理課',
+    role: '人件費・利益を乗せたクライアント向け見積書の作成を担当しています',
+    caps: ['見積書を仕上げる', 'クライアントへの送付準備をする', '発注の準備をする'],
+    context: 'あなたはAGOの総務部発注管理課のAIです。原価積算をもとに人件費・利益を乗せたクライアント向け見積書を作成します。丁寧かつ簡潔に日本語で回答してください。'
+  },
+  'ordered': {
+    icon: '🚢', name: '発注管理AI / 輸入担当AI', dept: '総務部 発注管理課・輸入担当',
+    role: '国内メーカー・中国業者への発注・やりとりを担当しています',
+    caps: ['発注書を作る', '中国業者に見積を取る', '資材の納期を確認する'],
+    context: 'あなたはAGOの総務部発注管理課・輸入担当のAIです。国内外への資材発注を担当します。丁寧かつ簡潔に日本語で回答してください。'
+  },
+  'construction-adj': {
+    icon: '📅', name: '受注管理AI', dept: '総務部 受注管理課',
+    role: '施工スケジュール調整・外注業者の手配を担当しています',
+    caps: ['施工スケジュールを組む', '外注業者を手配する', '関係者に連絡する'],
+    context: 'あなたはAGOの総務部受注管理課のAIです。施工調整・外注手配を担当します。丁寧かつ簡潔に日本語で回答してください。'
+  },
+  'completed': {
+    icon: '💰', name: '経理AI', dept: '経理部',
+    role: '完工後の請求書作成・送付を担当しています',
+    caps: ['請求書を作る', 'クライアントへ送付する', '経費を記録する'],
+    context: 'あなたはAGOの経理部のAIです。完工後の請求書作成・送付を担当します。丁寧かつ簡潔に日本語で回答してください。'
+  },
+  'invoiced': {
+    icon: '📁', name: '経理AI', dept: '経理部',
+    role: '請求済み案件の書類整理・経費計算・収支管理を担当しています',
+    caps: ['書類をまとめる', '収支を記録する', '経費を計算する'],
+    context: 'あなたはAGOの経理部のAIです。請求済み案件の書類管理・経費計算を担当します。丁寧かつ簡潔に日本語で回答してください。'
+  }
+};
+
+function renderAIWindow(phase, projectId) {
+  const cfg = AI_PHASE_CONFIG[phase];
+  if (!cfg) return '';
+  return `
+  <div class="ai-window" id="ai-window-${projectId}">
+    <div class="ai-window-header">
+      <div class="ai-window-icon">${cfg.icon}</div>
+      <div>
+        <div class="ai-window-name">${cfg.name}</div>
+        <div class="ai-window-dept">${cfg.dept}</div>
+      </div>
+    </div>
+    <div class="ai-window-role">${cfg.role}</div>
+    <div class="ai-window-caps">
+      ${cfg.caps.map(c => `<span class="ai-window-cap">✓ ${c}</span>`).join('')}
+    </div>
+    <div class="ai-window-input-row">
+      <textarea class="ai-window-input" id="ai-input-${projectId}" placeholder="何でも話しかけてください..." rows="2"></textarea>
+      <button class="ai-window-btn" id="ai-btn-${projectId}" onclick="sendToAI(${projectId},'${phase}',\`${cfg.context.replace(/`/g,"'")}\`)">送信</button>
+    </div>
+    <div class="ai-response" id="ai-response-${projectId}"></div>
+  </div>`;
+}
+
+async function sendToAI(projectId, phase, context) {
+  const input = document.getElementById('ai-input-' + projectId);
+  const btn   = document.getElementById('ai-btn-' + projectId);
+  const resp  = document.getElementById('ai-response-' + projectId);
+  const msg   = (input.value || '').trim();
+  if (!msg) return;
+
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+  resp.style.display = 'block';
+  resp.innerHTML = '<span class="ai-thinking">AIが考えています...</span>';
+
+  const proj = pipelineProjects.find(p => p.id == projectId);
+  const projInfo = proj
+    ? `案件名：${proj.name}、顧客：${proj.client_name||'未設定'}、フェーズ：${PIPELINE_PHASE_LABELS[proj.phase]||proj.phase}`
+    : '';
+
+  try {
+    const res = await fetch('ai-handler.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ context, proj_info: projInfo, message: msg })
+    });
+    const data = await res.json();
+    resp.textContent = data.reply || 'エラーが発生しました';
+  } catch(e) {
+    resp.textContent = '通信エラーが発生しました。もう一度お試しください。';
+  }
+
+  btn.disabled = false;
+  btn.textContent = '送信';
 }
 </script>
 

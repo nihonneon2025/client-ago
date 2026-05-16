@@ -5,6 +5,7 @@ config.js
 .env.*
 api.php
 subscribe.php
+api-config.php
 
 # Claude Code 全般（permission履歴・セッションログ・ローカル設定すべて機密扱い）
 .claude/
