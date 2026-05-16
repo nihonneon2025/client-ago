@@ -157,20 +157,27 @@ EOT;
                 if (!$amount && !empty($items)) {
                     $amount = array_sum(array_map(fn($i) => ($i['qty'] ?? 1) * ($i['unit_price'] ?? 0), $items));
                 }
+                $tax_amt = (int)round($amount * 0.1);
                 $ests    = json_decode(ago_kv_get('ago_estimates') ?? '[]', true) ?: [];
                 $new_eid = count($ests) > 0 ? max(array_column($ests, 'id')) + 1 : 1;
+                $doc_no  = 'EST-' . date('Ym') . '-' . str_pad($new_eid, 4, '0', STR_PAD_LEFT);
                 $new_est = [
-                    'id'          => $new_eid,
-                    'doc_type'    => 'estimate',
-                    'project_id'  => (string)$project_id,
-                    'client_name' => $target['client_name'] ?? '未設定',
-                    'issue_date'  => date('Y-m-d'),
-                    'amount'      => $amount,
-                    'tax'         => (int)round($amount * 0.1),
-                    'items'       => $items,
-                    'status'      => 'draft',
-                    'created_at'  => $ts,
-                    'source'      => 'line'
+                    'id'           => $new_eid,
+                    'doc_type'     => 'estimate',
+                    'doc_number'   => $doc_no,
+                    'project_id'   => (string)$project_id,
+                    'project_name' => $target['name'] ?? '',
+                    'subject'      => ($target['name'] ?? '案件') . ' 見積書',
+                    'client_name'  => $target['client_name'] ?? '未設定',
+                    'issue_date'   => date('Y-m-d'),
+                    'amount'       => $amount,
+                    'tax'          => $tax_amt,
+                    'total'        => $amount + $tax_amt,
+                    'items'        => $items,
+                    'status'       => 'draft',
+                    'created_by'   => 'LINE_AI',
+                    'created_at'   => $ts,
+                    'source'       => 'line'
                 ];
                 array_unshift($ests, $new_est);
                 ago_kv_set('ago_estimates', json_encode($ests, JSON_UNESCAPED_UNICODE));
@@ -194,20 +201,28 @@ EOT;
                 if (!$amount && !empty($items)) {
                     $amount = array_sum(array_map(fn($i) => ($i['qty'] ?? 1) * ($i['unit_price'] ?? 0), $items));
                 }
+                $tax_inv = (int)round($amount * 0.1);
                 $invs    = json_decode(ago_kv_get('ago_invoices') ?? '[]', true) ?: [];
                 $new_iid = count($invs) > 0 ? max(array_column($invs, 'id')) + 1 : 1;
+                $doc_no_inv = 'INV-' . date('Ym') . '-' . str_pad($new_iid, 4, '0', STR_PAD_LEFT);
                 $new_inv = [
-                    'id'          => $new_iid,
-                    'doc_type'    => 'invoice',
-                    'project_id'  => (string)$project_id,
-                    'client_name' => $target['client_name'] ?? '未設定',
-                    'issue_date'  => date('Y-m-d'),
-                    'amount'      => $amount,
-                    'tax'         => (int)round($amount * 0.1),
-                    'items'       => $items,
-                    'status'      => 'unpaid',
-                    'created_at'  => $ts,
-                    'source'      => 'line'
+                    'id'           => $new_iid,
+                    'doc_type'     => 'invoice',
+                    'doc_number'   => $doc_no_inv,
+                    'project_id'   => (string)$project_id,
+                    'project_name' => $target['name'] ?? '',
+                    'subject'      => ($target['name'] ?? '案件') . ' 工事代金',
+                    'client_name'  => $target['client_name'] ?? '未設定',
+                    'issue_date'   => date('Y-m-d'),
+                    'due_date'     => date('Y-m-d', strtotime('+30 days')),
+                    'amount'       => $amount,
+                    'tax'          => $tax_inv,
+                    'total'        => $amount + $tax_inv,
+                    'items'        => $items,
+                    'status'       => 'draft',
+                    'created_by'   => 'LINE_AI',
+                    'created_at'   => $ts,
+                    'source'       => 'line'
                 ];
                 array_unshift($invs, $new_inv);
                 ago_kv_set('ago_invoices', json_encode($invs, JSON_UNESCAPED_UNICODE));

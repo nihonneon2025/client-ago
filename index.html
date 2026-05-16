@@ -3002,25 +3002,36 @@ function renderPipelineDetail(id) {
     html += renderContractorTab(id);
 
   } else if (currentPipelineTab === 'docs') {
+    const allEst = lsLoad(LS_ESTIMATES).filter(d => String(d.project_id) === String(id));
     const allInv = lsLoad(LS_INVOICES).filter(d => String(d.project_id) === String(id));
     const allPO  = lsLoad(LS_PO).filter(d => String(d.project_id) === String(id));
     const allExp = lsLoad(LS_EXPENSES).filter(d => String(d.project_id) === String(id));
-    const totalInv = allInv.reduce((s, d) => s + (parseInt(d.total) || 0), 0);
-    const totalPO  = allPO.reduce((s, d) => s + (parseInt(d.total) || 0), 0);
-    const totalExp = allExp.reduce((s, d) => s + (parseInt(d.amount) || 0), 0);
-    const estimate = parseInt(proj.estimate) || 0;
+    const docTotal = d => d.total !== undefined ? parseInt(d.total) : (parseInt(d.amount||0) + parseInt(d.tax||0));
+    const totalEst = allEst.reduce((s, d) => s + docTotal(d), 0);
+    const totalInv = allInv.reduce((s, d) => s + docTotal(d), 0);
+    const totalPO  = allPO.reduce((s, d) => s + docTotal(d), 0);
+    const totalExp = allExp.reduce((s, d) => s + (parseInt(d.amount||0)), 0);
+    const estRows = allEst.map(d => {
+      const t = docTotal(d);
+      const dt = d.issue_date || d.date || '';
+      const no = d.doc_number || d.id || '';
+      const subj = d.subject || (proj.name + ' 見積書');
+      const stat = ({draft:'下書',sent:'送付済',approved:'承認済'})[d.status] || d.status || '';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--card);border-radius:8px;margin-bottom:6px;font-size:13px"><div><span style="font-size:11px;color:var(--muted)">' + escHtml(dt) + ' ' + escHtml(String(no)) + '</span><br><strong>' + escHtml(subj) + '</strong></div><div style="text-align:right"><strong style="color:var(--accent)">¥' + t.toLocaleString() + '</strong><br><span style="font-size:11px;color:var(--muted)">' + stat + '</span></div></div>';
+    }).join('');
 
     html += `
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
-      <button class="btn-secondary" style="padding:10px 6px;font-size:12px;text-align:center;color:var(--blue);border-color:var(--blue)" onclick="showInvoiceFromProject(${id},'purchase_order')">📋<br>発注書を起票</button>
-      <button class="btn-secondary" style="padding:10px 6px;font-size:12px;text-align:center;color:var(--orange);border-color:var(--orange)" onclick="showExpenseFromProject(${id})">💸<br>経費を追加</button>
-      <button class="btn-secondary" style="padding:10px 6px;font-size:12px;text-align:center;color:var(--green);border-color:var(--green)" onclick="showInvoiceFromProject(${id},'invoice')">📄<br>請求書を発行</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:16px">
+      <button class="btn-secondary" style="padding:8px 4px;font-size:11px;text-align:center;color:var(--accent);border-color:var(--accent)" onclick="openEstimateModal(null)">📝<br>見積書</button>
+      <button class="btn-secondary" style="padding:8px 4px;font-size:11px;text-align:center;color:var(--blue);border-color:var(--blue)" onclick="showInvoiceFromProject(${id},'purchase_order')">📋<br>発注書</button>
+      <button class="btn-secondary" style="padding:8px 4px;font-size:11px;text-align:center;color:var(--orange);border-color:var(--orange)" onclick="showExpenseFromProject(${id})">💸<br>経費</button>
+      <button class="btn-secondary" style="padding:8px 4px;font-size:11px;text-align:center;color:var(--green);border-color:var(--green)" onclick="showInvoiceFromProject(${id},'invoice')">📄<br>請求書</button>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px">
       <div style="background:var(--card);border-radius:10px;padding:12px;text-align:center">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">見積金額</div>
-        <div style="font-size:18px;font-weight:700;color:var(--accent)">¥${estimate.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">見積合計</div>
+        <div style="font-size:18px;font-weight:700;color:var(--accent)">¥${totalEst.toLocaleString()}</div>
       </div>
       <div style="background:var(--card);border-radius:10px;padding:12px;text-align:center">
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px">請求済合計</div>
@@ -3036,18 +3047,21 @@ function renderPipelineDetail(id) {
       </div>
     </div>
 
+    <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px">📝 見積書（${allEst.length}件）</div>
+    ${allEst.length === 0 ? '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">なし</p>' : estRows}
+
     <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px">📄 請求書（${allInv.length}件）</div>
     ${allInv.length === 0 ? '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">なし</p>' :
       allInv.map(d => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--card);border-radius:8px;margin-bottom:6px;font-size:13px">
-        <div><span style="font-size:11px;color:var(--muted)">${d.doc_number||''}</span><br><strong>${escHtml(d.subject||'')}</strong></div>
-        <div style="text-align:right"><strong style="color:var(--green)">¥${parseInt(d.total||0).toLocaleString()}</strong><br><span style="font-size:11px;color:var(--muted)">${{draft:'下書',sent:'送付済',paid:'入金済'}[d.status]||d.status}</span></div>
+        <div><span style="font-size:11px;color:var(--muted)">${d.doc_number||''}</span><br><strong>${escHtml(d.subject||proj.name+' 請求書')}</strong></div>
+        <div style="text-align:right"><strong style="color:var(--green)">¥${docTotal(d).toLocaleString()}</strong><br><span style="font-size:11px;color:var(--muted)">${{draft:'下書',sent:'送付済',paid:'入金済',unpaid:'未入金'}[d.status]||d.status}</span></div>
       </div>`).join('')}
 
     <div style="font-size:13px;font-weight:600;color:var(--muted);margin:12px 0 8px">📋 発注書（${allPO.length}件）</div>
     ${allPO.length === 0 ? '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">なし</p>' :
       allPO.map(d => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--card);border-radius:8px;margin-bottom:6px;font-size:13px">
         <div><span style="font-size:11px;color:var(--muted)">${d.doc_number||''}</span><br><strong>${escHtml(d.subject||'')}</strong></div>
-        <div style="text-align:right"><strong style="color:var(--blue)">¥${parseInt(d.total||0).toLocaleString()}</strong><br><span style="font-size:11px;color:var(--muted)">${{draft:'下書',approved:'承認済',paid:'支払済'}[d.status]||d.status}</span></div>
+        <div style="text-align:right"><strong style="color:var(--blue)">¥${docTotal(d).toLocaleString()}</strong><br><span style="font-size:11px;color:var(--muted)">${{draft:'下書',approved:'承認済',paid:'支払済'}[d.status]||d.status}</span></div>
       </div>`).join('')}
 
     <div style="font-size:13px;font-weight:600;color:var(--muted);margin:12px 0 8px">💸 経費（${allExp.length}件）</div>
