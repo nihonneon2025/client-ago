@@ -3017,7 +3017,7 @@ function renderPipelineDetail(id) {
       const no = d.doc_number || d.id || '';
       const subj = d.subject || (proj.name + ' 見積書');
       const stat = ({draft:'下書',sent:'送付済',approved:'承認済'})[d.status] || d.status || '';
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--card);border-radius:8px;margin-bottom:6px;font-size:13px"><div><span style="font-size:11px;color:var(--muted)">' + escHtml(dt) + ' ' + escHtml(String(no)) + '</span><br><strong>' + escHtml(subj) + '</strong></div><div style="text-align:right"><strong style="color:var(--accent)">¥' + t.toLocaleString() + '</strong><br><span style="font-size:11px;color:var(--muted)">' + stat + '</span></div></div>';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--card);border-radius:8px;margin-bottom:6px;font-size:13px"><div><span style="font-size:11px;color:var(--muted)">' + escHtml(dt) + ' ' + escHtml(String(no)) + '</span><br><strong>' + escHtml(subj) + '</strong></div><div style="display:flex;align-items:center;gap:8px"><div style="text-align:right"><strong style="color:var(--accent)">¥' + t.toLocaleString() + '</strong><br><span style="font-size:11px;color:var(--muted)">' + stat + '</span></div><button onclick="window.open(\'print-doc.php?key=ago_estimates&id=' + d.id + '\',\'_blank\')" style="background:#f3e5f5;border:1px solid #9c27b0;color:#6a1b9a;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">📄 PDF</button></div></div>';
     }).join('');
 
     html += `
@@ -3054,14 +3054,20 @@ function renderPipelineDetail(id) {
     ${allInv.length === 0 ? '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">なし</p>' :
       allInv.map(d => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--card);border-radius:8px;margin-bottom:6px;font-size:13px">
         <div><span style="font-size:11px;color:var(--muted)">${d.doc_number||''}</span><br><strong>${escHtml(d.subject||proj.name+' 請求書')}</strong></div>
-        <div style="text-align:right"><strong style="color:var(--green)">¥${docTotal(d).toLocaleString()}</strong><br><span style="font-size:11px;color:var(--muted)">${{draft:'下書',sent:'送付済',paid:'入金済',unpaid:'未入金'}[d.status]||d.status}</span></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="text-align:right"><strong style="color:var(--green)">¥${docTotal(d).toLocaleString()}</strong><br><span style="font-size:11px;color:var(--muted)">${{draft:'下書',sent:'送付済',paid:'入金済',unpaid:'未入金'}[d.status]||d.status}</span></div>
+          <button onclick="window.open('print-doc.php?key=ago_invoices&id=${d.id}','_blank')" style="background:#e8f5e9;border:1px solid #4caf50;color:#2e7d32;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">📄 PDF</button>
+        </div>
       </div>`).join('')}
 
     <div style="font-size:13px;font-weight:600;color:var(--muted);margin:12px 0 8px">📋 発注書（${allPO.length}件）</div>
     ${allPO.length === 0 ? '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">なし</p>' :
       allPO.map(d => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--card);border-radius:8px;margin-bottom:6px;font-size:13px">
         <div><span style="font-size:11px;color:var(--muted)">${d.doc_number||''}</span><br><strong>${escHtml(d.subject||'')}</strong></div>
-        <div style="text-align:right"><strong style="color:var(--blue)">¥${docTotal(d).toLocaleString()}</strong><br><span style="font-size:11px;color:var(--muted)">${{draft:'下書',approved:'承認済',paid:'支払済'}[d.status]||d.status}</span></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="text-align:right"><strong style="color:var(--blue)">¥${docTotal(d).toLocaleString()}</strong><br><span style="font-size:11px;color:var(--muted)">${{draft:'下書',approved:'承認済',paid:'支払済'}[d.status]||d.status}</span></div>
+          <button onclick="window.open('print-doc.php?key=ago_purchase_orders&id=${d.id}','_blank')" style="background:#e3f2fd;border:1px solid #2196f3;color:#1565c0;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">📄 PDF</button>
+        </div>
       </div>`).join('')}
 
     <div style="font-size:13px;font-weight:600;color:var(--muted);margin:12px 0 8px">💸 経費（${allExp.length}件）</div>
