@@ -483,9 +483,9 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .col-resize-handle::after{content:'';position:absolute;right:1px;top:15%;height:70%;width:2px;background:var(--border);border-radius:1px;transition:background .15s}
 .col-resize-handle:hover::after{background:var(--primary)}
 body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!important}
-/* ═══ カードリサイズ ═══ */
-.proj-pipeline-card{resize:horizontal;overflow:hidden;min-width:220px}
-.order-card{resize:horizontal;overflow:hidden;min-width:180px}
+/* ═══ カード最小幅 ═══ */
+.proj-pipeline-card{min-width:220px}
+.order-card{min-width:180px}
 /* ═══ 完了カード・D&D ═══ */
 .card-done{opacity:.42;filter:grayscale(.72)}
 .card-dragging{opacity:.35;transform:scale(.97);pointer-events:none}
@@ -2036,7 +2036,8 @@ function renderOrders() {
     const arrivalInfo = o.arrival_date ? `<span style="font-size:11px;color:var(--muted)">到着: ${o.arrival_date}</span>` : '';
     // 現場リンク
     const projName = o.project_link ? (() => {
-      const p = lsLoad(LS_PROJECTS_PIPELINE).find(x => x.id == o.project_link) || schProjects.find(x => x.id == o.project_link);
+      const p = lsLoad(LS_PROJECTS_PIPELINE).find(x => x.id == o.project_link)
+             || lsLoad('ago_sch_projects').find(x => x.id == o.project_link);
       return p ? escHtml(p.name || '') : '';
     })() : '';
     const projBadge = projName ? `<div style="background:rgba(99,102,241,.12);border-left:4px solid var(--primary);border-radius:0 8px 8px 0;padding:7px 12px;margin:8px 0 6px"><span style="font-size:16px;font-weight:800;color:var(--accent);letter-spacing:.3px">🏗 ${projName}</span></div>` : '';
