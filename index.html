@@ -2160,6 +2160,18 @@ function openDetail(id) {
   document.querySelector('.fab').style.display = 'none';
 }
 
+function updateOrderProject(orderId, projId) {
+  const all = loadOrdersLS();
+  const o = all.find(x => x.id == orderId);
+  if (!o) return;
+  o.project_link = projId || null;
+  o.updated_at = lsNow();
+  saveOrdersLS(all);
+  currentOrder = o;
+  showToast('現場を更新しました');
+  renderOrders();
+}
+
 function renderDetail() {
   const o = currentOrder;
   document.getElementById('detail-code').textContent = o.order_code;
@@ -2168,14 +2180,16 @@ function renderDetail() {
   const csKey = o.china_status || 'unordered';
   const csLabel = CHINA_STATUS_LABELS[csKey] || csKey;
   const csClass = CHINA_STATUS_CLASSES[csKey] || '';
-  const projName = o.project_link ? (() => { const p = schProjects.find(x => x.id == o.project_link); return p ? escHtml(p.name) : ''; })() : '';
+  // 現場名ルックアップ（両ストア参照）
+  const allProjsForDetail = [...lsLoad(LS_PROJECTS_PIPELINE), ...lsLoad('ago_sch_projects').filter(s => !lsLoad(LS_PROJECTS_PIPELINE).find(x => x.id == s.id))];
+  const projOpts = allProjsForDetail.map(p => `<option value="${p.id}"${o.project_link == p.id ? ' selected' : ''}>${escHtml(p.name)}</option>`).join('');
   document.getElementById('detail-info').innerHTML = `
     <div class="info-row"><span class="info-label">${t('product')}</span><span class="info-value">${escHtml(o.product)}</span></div>
     <div class="info-row"><span class="info-label">${t('qty_lbl')}</span><span class="info-value">${o.qty}個</span></div>
     <div class="info-row"><span class="info-label">${t('amount_lbl')}</span><span class="info-value">${amount}</span></div>
     <div class="info-row"><span class="info-label">${t('chinaStatusLabel')||'中国発注状況'}</span><span class="info-value"><span class="china-status-badge ${csClass}">${csLabel}</span></span></div>
     ${o.arrival_date ? `<div class="info-row"><span class="info-label">${t('arrivalDate')||'到着予定日'}</span><span class="info-value">${escHtml(o.arrival_date)}</span></div>` : ''}
-    ${projName ? `<div class="info-row"><span class="info-label">${t('projectLink')||'現場'}</span><span class="info-value" style="color:var(--accent)">🏗 ${projName}</span></div>` : ''}
+    <div class="info-row"><span class="info-label">🏗 現場</span><span class="info-value"><select style="background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:13px" onchange="updateOrderProject(${o.id},this.value)"><option value="">-- なし --</option>${projOpts}</select></span></div>
     ${o.buyer_name ? `<div class="info-row"><span class="info-label">${t('buyer_lbl')}</span><span class="info-value">${escHtml(o.buyer_name)}</span></div>` : ''}
     ${o.buyer_email ? `<div class="info-row"><span class="info-label">${t('email_lbl')}</span><span class="info-value">${escHtml(o.buyer_email)}</span></div>` : ''}
     ${o.buyer_note ? `<div class="info-row"><span class="info-label">${t('note_lbl')}</span><span class="info-value">${escHtml(o.buyer_note)}</span></div>` : ''}
