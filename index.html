@@ -2043,11 +2043,7 @@ function renderOrders() {
     const projBadge = projName ? `<div style="background:rgba(99,102,241,.12);border-left:4px solid var(--primary);border-radius:0 8px 8px 0;padding:7px 12px;margin:8px 0 6px"><span style="font-size:16px;font-weight:800;color:var(--accent);letter-spacing:.3px">🏗 ${projName}</span></div>` : '';
     return `
     <div class="${staleClass}" data-id="${o.id}" draggable="true"
-      onclick="openDetail(${o.id})"
-      ondragstart="orderCardDragStart(event,${o.id})"
-      ondragend="orderCardDragEnd(event)"
-      ondragover="orderCardDragOver(event,${o.id})"
-      ondrop="orderCardDrop(event,${o.id})">
+      onclick="openDetail(${o.id})">
       ${staleBadge}
       <div class="order-card-top">
         <span class="order-code">${escHtml(o.order_code)}</span>
@@ -2298,8 +2294,12 @@ function showCreateModal() {
     const projSel = document.getElementById('inp-project-link');
     if (projSel) {
       projSel.innerHTML = '<option value="">-- なし --</option>';
-      lsLoad(LS_SCH_PROJECTS).forEach(p => {
+      lsLoad(LS_PROJECTS_PIPELINE).forEach(p => {
         projSel.innerHTML += `<option value="${p.id}">${escHtml(p.name)}</option>`;
+      });
+      lsLoad(LS_SCH_PROJECTS).forEach(p => {
+        if (!lsLoad(LS_PROJECTS_PIPELINE).find(x => x.id == p.id))
+          projSel.innerHTML += `<option value="${p.id}">${escHtml(p.name)}</option>`;
       });
     }
   } catch(e) {}
@@ -2844,11 +2844,7 @@ function renderProjectsTab() {
     const isDone = PROJ_DONE_PHASES.includes(p.phase);
     return `<div class="proj-pipeline-card${isDone?' card-done':''}" data-id="${p.id}" draggable="true"
       onclick="openProjectsTabDetail(${p.id})"
-      oncontextmenu="showProjectCtxMenu(event,${p.id});return false;"
-      ondragstart="projCardDragStart(event,${p.id})"
-      ondragend="projCardDragEnd(event)"
-      ondragover="projCardDragOver(event,${p.id})"
-      ondrop="projCardDrop(event,${p.id})">
+      oncontextmenu="showProjectCtxMenu(event,${p.id});return false;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <span style="font-weight:700;font-size:15px;flex:1">${escHtml(p.name)}</span>
         <span class="pipeline-badge ${phaseClass}" onclick="event.stopPropagation();showProjectCtxMenu(event,${p.id});return false;" style="cursor:pointer" title="タップでメニュー">${phaseLabel}</span>
@@ -3392,72 +3388,47 @@ function initColResize(table, storageKey) {
   }
 }
 
-// ── 施工項目カード D&D ────────────────────────────────────────
-let projDragId = null;
-function projCardDragStart(e, id) {
-  projDragId = id;
-  e.currentTarget.classList.add('card-dragging');
-  e.dataTransfer.effectAllowed = 'move';
-}
-function projCardDragEnd(e) {
-  e.currentTarget.classList.remove('card-dragging');
-  document.querySelectorAll('.proj-pipeline-card.card-drag-over').forEach(el => el.classList.remove('card-drag-over'));
-}
-function projCardDragOver(e, id) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  if (projDragId !== id) {
-    document.querySelectorAll('.proj-pipeline-card.card-drag-over').forEach(el => el.classList.remove('card-drag-over'));
-    e.currentTarget.classList.add('card-drag-over');
-  }
-}
-function projCardDrop(e, targetId) {
-  e.preventDefault();
-  e.currentTarget.classList.remove('card-drag-over');
-  if (projDragId === null || projDragId === targetId) { projDragId = null; return; }
-  const cards = Array.from(document.querySelectorAll('#projects-list-body .proj-pipeline-card[data-id]'));
-  const ids = cards.map(c => Number(c.dataset.id));
-  const fromIdx = ids.indexOf(Number(projDragId)), toIdx = ids.indexOf(Number(targetId));
-  if (fromIdx < 0 || toIdx < 0) { projDragId = null; return; }
-  ids.splice(fromIdx, 1);
-  ids.splice(toIdx, 0, Number(projDragId));
-  try { localStorage.setItem('ago_proj_card_order', JSON.stringify(ids)); } catch(ex) {}
-  projDragId = null;
-  renderProjectsTab();
-}
-
-// ── 資材注文カード D&D ────────────────────────────────────────
-let orderDragId = null;
-function orderCardDragStart(e, id) {
-  orderDragId = id;
-  e.currentTarget.classList.add('card-dragging');
-  e.dataTransfer.effectAllowed = 'move';
-}
-function orderCardDragEnd(e) {
-  e.currentTarget.classList.remove('card-dragging');
-  document.querySelectorAll('.order-card.card-drag-over').forEach(el => el.classList.remove('card-drag-over'));
-}
-function orderCardDragOver(e, id) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  if (orderDragId !== id) {
-    document.querySelectorAll('.order-card.card-drag-over').forEach(el => el.classList.remove('card-drag-over'));
-    e.currentTarget.classList.add('card-drag-over');
-  }
-}
-function orderCardDrop(e, targetId) {
-  e.preventDefault();
-  e.currentTarget.classList.remove('card-drag-over');
-  if (orderDragId === null || orderDragId === targetId) { orderDragId = null; return; }
-  const cards = Array.from(document.querySelectorAll('#order-grid [data-id]'));
-  const ids = cards.map(c => Number(c.dataset.id));
-  const fromIdx = ids.indexOf(Number(orderDragId)), toIdx = ids.indexOf(Number(targetId));
-  if (fromIdx < 0 || toIdx < 0) { orderDragId = null; return; }
-  ids.splice(fromIdx, 1);
-  ids.splice(toIdx, 0, Number(orderDragId));
-  try { localStorage.setItem('ago_order_card_order', JSON.stringify(ids)); } catch(ex) {}
-  orderDragId = null;
-  renderOrders();
+// ── カード D&D（コンテナ委譲・汎用） ────────────────────────────
+function initCardDragDrop(containerId, storageKey, renderFn) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  let dragId = null;
+  container.addEventListener('dragstart', e => {
+    const card = e.target.closest('[draggable][data-id]');
+    if (!card) return;
+    dragId = Number(card.dataset.id);
+    setTimeout(() => card.classList.add('card-dragging'), 0);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  container.addEventListener('dragend', () => {
+    container.querySelectorAll('.card-dragging,.card-drag-over').forEach(el =>
+      el.classList.remove('card-dragging','card-drag-over'));
+    dragId = null;
+  });
+  // コンテナ全体を drop zone にすることでギャップでの drop も拾う
+  container.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const card = e.target.closest('[draggable][data-id]');
+    container.querySelectorAll('.card-drag-over').forEach(el => el.classList.remove('card-drag-over'));
+    if (card && Number(card.dataset.id) !== dragId) card.classList.add('card-drag-over');
+  });
+  container.addEventListener('drop', e => {
+    e.preventDefault();
+    container.querySelectorAll('.card-drag-over').forEach(el => el.classList.remove('card-drag-over'));
+    const card = e.target.closest('[draggable][data-id]');
+    if (!card || dragId === null) { dragId = null; return; }
+    const targetId = Number(card.dataset.id);
+    if (targetId === dragId) { dragId = null; return; }
+    const all = Array.from(container.querySelectorAll('[draggable][data-id]'));
+    const ids = all.map(c => Number(c.dataset.id));
+    const fi = ids.indexOf(dragId), ti = ids.indexOf(targetId);
+    if (fi < 0 || ti < 0) { dragId = null; return; }
+    ids.splice(fi, 1); ids.splice(ti, 0, dragId);
+    try { localStorage.setItem(storageKey, JSON.stringify(ids)); } catch(ex) {}
+    dragId = null;
+    renderFn();
+  });
 }
 
 // ── タブ・フィルター D&D（汎用） ──────────────────────────────
@@ -3514,6 +3485,9 @@ function initDraggableTabs(container, storageKey) {
 initDraggableTabs(document.getElementById('tab-nav-inner'),                    'ago_main_tab_order');
 initDraggableTabs(document.querySelector('#dashboard-view .filter-bar'),        'ago_order_filter_order');
 initDraggableTabs(document.getElementById('proj-filter-row'),                   'ago_proj_filter_order');
+// カード D&D 初期化（コンテナに一度だけ設定、innerHTML 更新後も有効）
+initCardDragDrop('order-grid',        'ago_order_card_order', () => renderOrders());
+initCardDragDrop('projects-list-body','ago_proj_card_order',  () => renderProjectsTab());
 
 // ── パイプライン案件モーダル ─────────────────────────────────
 function showPipelineModal(editId) {
