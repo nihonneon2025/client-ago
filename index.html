@@ -466,6 +466,17 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .ai-response{margin-top:12px;display:none}
 .ai-response-bubble{background:#e8f8f0;border-radius:0 16px 16px 16px;padding:10px 14px;font-size:13px;color:#1a3c2a;white-space:pre-wrap;line-height:1.6;display:inline-block;max-width:90%}
 .ai-thinking-bubble{background:#f0f0f0;border-radius:0 16px 16px 16px;padding:10px 14px;font-size:13px;color:#888;font-style:italic}
+/* ═══ 右クリックコンテキストメニュー ═══ */
+#proj-ctx-menu{position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.4);min-width:200px;padding:6px 0;display:none}
+#proj-ctx-menu.show{display:block}
+.ctx-item{display:block;width:100%;background:none;border:none;color:var(--text);padding:10px 16px;font-size:14px;text-align:left;cursor:pointer;transition:background .15s;white-space:nowrap}
+.ctx-item:hover{background:var(--card)}
+.ctx-sep{height:1px;background:var(--border);margin:4px 0}
+.ctx-sub-label{font-size:11px;color:var(--muted);padding:6px 16px 2px;font-weight:600}
+/* ═══ フェーズ即変更セレクト ═══ */
+.phase-quick-select{background:var(--card);border:1px solid var(--primary);color:var(--accent);padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;outline:none;transition:border-color .2s}
+.phase-quick-select:hover{border-color:var(--accent)}
+.phase-quick-select option{background:var(--surface);color:var(--text)}
 </style>
 </head>
 <body>
@@ -563,15 +574,15 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 
 <!-- Tab Navigation -->
 <div class="tab-nav">
-  <button class="tab-btn active" id="tab-orders" onclick="switchTab('orders')">📦 <span id="tab-orders-lbl">資材注文</span></button>
-  <button class="tab-btn" id="tab-projects" onclick="switchTab('projects')">🏗 <span id="tab-projects-lbl">施工項目</span></button>
-  <button class="tab-btn" id="tab-customers" onclick="switchTab('customers')">👥 <span id="tab-customers-lbl">顧客</span></button>
-  <button class="tab-btn" id="tab-monthly" onclick="switchTab('monthly')">📊 <span id="tab-monthly-lbl">月別</span></button>
-  <button class="tab-btn" id="tab-schedule" onclick="switchTab('schedule')">📅 <span id="tab-schedule-lbl">スケジュール</span></button>
-  <button class="tab-btn" id="tab-attendance" onclick="switchTab('attendance')">⏰ <span id="tab-attendance-lbl">勤怠</span></button>
-  <button class="tab-btn" id="tab-instructions" onclick="switchTab('instructions')">✉ <span id="tab-instructions-lbl">指示</span></button>
+  <button class="tab-btn active" id="tab-projects" onclick="switchTab('projects')">🏗 <span id="tab-projects-lbl">案件管理</span></button>
   <button class="tab-btn" id="tab-accounting" onclick="switchTab('accounting')">💰 <span id="tab-accounting-lbl">経理</span></button>
-  <button class="tab-btn" id="tab-line" onclick="switchTab('line')">💬 <span id="tab-line-lbl">LINE受信</span></button>
+  <button class="tab-btn" id="tab-schedule" onclick="switchTab('schedule')">📅 <span id="tab-schedule-lbl">工程</span></button>
+  <button class="tab-btn" id="tab-orders" onclick="switchTab('orders')">📦 <span id="tab-orders-lbl">資材注文</span></button>
+  <button class="tab-btn" id="tab-attendance" onclick="switchTab('attendance')">⏰ <span id="tab-attendance-lbl">勤怠</span></button>
+  <button class="tab-btn" id="tab-monthly" onclick="switchTab('monthly')">📊 <span id="tab-monthly-lbl">月別収支</span></button>
+  <button class="tab-btn" id="tab-customers" onclick="switchTab('customers')">👥 <span id="tab-customers-lbl">顧客</span></button>
+  <button class="tab-btn" id="tab-instructions" onclick="switchTab('instructions')">✉ <span id="tab-instructions-lbl">指示</span></button>
+  <button class="tab-btn" id="tab-line" onclick="switchTab('line')">💬 <span id="tab-line-lbl">LINE</span></button>
 </div>
 
 <!-- Dashboard / Orders View -->
@@ -2760,10 +2771,10 @@ function renderProjectsTab() {
     const staffNames = (p.staff || []).map(uid => USERS[uid]||uid).join(', ');
     const period = (p.start_date && p.end_date) ? `${p.start_date} 〜 ${p.end_date}` : (p.start_date || '未定');
     const estStr = p.estimate ? '¥'+parseInt(p.estimate).toLocaleString() : '';
-    return `<div class="proj-pipeline-card" onclick="openProjectsTabDetail(${p.id})">
+    return `<div class="proj-pipeline-card" onclick="openProjectsTabDetail(${p.id})" oncontextmenu="showProjectCtxMenu(event,${p.id});return false;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <span style="font-weight:700;font-size:15px;flex:1">${escHtml(p.name)}</span>
-        <span class="pipeline-badge ${phaseClass}">${phaseLabel}</span>
+        <span class="pipeline-badge ${phaseClass}" onclick="event.stopPropagation();showProjectCtxMenu(event,${p.id});return false;" style="cursor:pointer" title="タップでメニュー">${phaseLabel}</span>
       </div>
       <div style="font-size:12px;color:var(--muted);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">
         <span>【${typeLabel}】</span>
@@ -2830,7 +2841,9 @@ function renderPipelineDetail(id) {
   <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn-secondary" onclick="currentPipelineProjectId=null;renderProjectsTab()" style="padding:8px 14px;font-size:13px">← 案件一覧</button>
     <button class="btn-secondary" style="padding:8px 14px;font-size:13px" onclick="showPipelineModal(${proj.id})">✏ 編集</button>
-    <button class="btn-secondary" style="padding:8px 14px;font-size:13px;color:var(--accent)" onclick="showPhaseModal(${proj.id})">🔄 フェーズ変更</button>
+    <select class="phase-quick-select" onchange="changeProjectPhase(${proj.id},this.value)" title="フェーズを選んですぐ変更">
+      ${PIPELINE_PHASES.map(ph=>`<option value="${ph}"${ph===proj.phase?' selected':''}>${PIPELINE_PHASE_LABELS[ph]||ph}</option>`).join('')}
+    </select>
   </div>
 
   <div style="display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px">
@@ -3186,10 +3199,58 @@ function changeProjectPhase(projectId, newPhase) {
   all[idx].updated_at = lsNow();
   lsSave(LS_PROJECTS_PIPELINE, all);
   hideModal('phase-modal');
-  showToast('フェーズを更新しました: ' + PIPELINE_PHASE_LABELS[newPhase]);
-  renderPipelineDetail(projectId);
+  showToast('フェーズを更新しました: ' + (PIPELINE_PHASE_LABELS[newPhase]||newPhase));
+  hideProjectCtxMenu();
+  if (currentPipelineProjectId !== null) renderPipelineDetail(projectId);
+  else renderProjectsTab();
   pipelineProjects = all;
 }
+
+// ── 右クリックコンテキストメニュー ────────────────────────────
+let _ctxProjectId = null;
+function showProjectCtxMenu(e, projectId) {
+  e.preventDefault();
+  _ctxProjectId = projectId;
+  const menu = document.getElementById('proj-ctx-menu');
+  const proj = lsLoad(LS_PROJECTS_PIPELINE).find(p => p.id == projectId);
+  if (!proj) return;
+
+  // フェーズ一覧を動的生成
+  const phaseList = document.getElementById('ctx-phase-list');
+  phaseList.innerHTML = PIPELINE_PHASES.map(ph => {
+    const isCurrent = ph === proj.phase;
+    return `<button class="ctx-item" style="${isCurrent?'color:var(--primary);font-weight:700':''}" onclick="changeProjectPhase(${projectId},'${ph}')">${isCurrent?'✓ ':''} ${PIPELINE_PHASE_LABELS[ph]||ph}</button>`;
+  }).join('');
+
+  // ボタンのイベント
+  document.getElementById('ctx-open').onclick = () => { hideProjectCtxMenu(); openProjectsTabDetail(projectId); };
+  document.getElementById('ctx-edit').onclick = () => { hideProjectCtxMenu(); showPipelineModal(projectId); };
+  document.getElementById('ctx-estimate').onclick = () => { hideProjectCtxMenu(); showInvoiceFromProject(projectId,'estimate'); };
+  document.getElementById('ctx-invoice').onclick = () => { hideProjectCtxMenu(); showInvoiceFromProject(projectId,'invoice'); };
+
+  // 位置調整（画面外に出ないように）
+  menu.classList.add('show');
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let x = e.clientX, y = e.clientY;
+  if (x + mw > vw) x = vw - mw - 8;
+  if (y + mh > vh) y = vh - mh - 8;
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+}
+function hideProjectCtxMenu() {
+  const menu = document.getElementById('proj-ctx-menu');
+  if (menu) menu.classList.remove('show');
+  _ctxProjectId = null;
+}
+// メニュー外クリックで閉じる
+document.addEventListener('click', function(e) {
+  const menu = document.getElementById('proj-ctx-menu');
+  if (menu && !menu.contains(e.target)) hideProjectCtxMenu();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') hideProjectCtxMenu();
+});
 
 // ── パイプライン案件モーダル ─────────────────────────────────
 function showPipelineModal(editId) {
@@ -6784,7 +6845,8 @@ setLang(lang);
 // サーバー同期してから表示（api.php がない場合はlocalStorageのまま動作）
 (async () => {
   await syncFromServer();
-  loadOrders();
+  loadOrders(); // 資材注文データを事前ロード
+  switchTab('projects'); // 案件管理を最初に表示
 })();
 
 // 監視対象キー（変更検知用）
@@ -9448,6 +9510,17 @@ async function sendToAI(projectId, phase, context) {
       <button class="btn-secondary" style="width:100%;margin-top:14px;padding:8px" onclick="document.getElementById('login-pin-area').style.display='none';loginSelectedUser=null;">← ユーザー選択に戻る</button>
     </div>
   </div>
+</div>
+<!-- 右クリックコンテキストメニュー -->
+<div id="proj-ctx-menu">
+  <button class="ctx-item" id="ctx-open">📋 詳細を開く</button>
+  <button class="ctx-item" id="ctx-edit">✏ 編集</button>
+  <div class="ctx-sep"></div>
+  <div class="ctx-sub-label">フェーズを変更</div>
+  <div id="ctx-phase-list"></div>
+  <div class="ctx-sep"></div>
+  <button class="ctx-item" id="ctx-estimate" style="color:var(--green)">📄 見積書を作る</button>
+  <button class="ctx-item" id="ctx-invoice" style="color:var(--blue)">🧾 請求書を作る</button>
 </div>
 <!-- CSV Preview Modal -->
 <div class="modal-overlay" id="csv-preview-modal" onclick="if(event.target===this)closeCsvPreviewModal()" style="display:none;align-items:center;justify-content:center">
