@@ -62,6 +62,16 @@ foreach ($events as $event) {
 
     if (empty($text) || empty($userId)) continue;
 
+    // グループチャットの場合：トリガーワードがなければ無視
+    if ($groupId) {
+        $trigger = '/^(ウルバン|urvan|URVAN|urban|URBAN)[\s、,　]/ui';
+        if (!preg_match($trigger, $text)) continue;
+        // トリガーワードを除いた本文だけ処理する
+        $text = trim(preg_replace($trigger, '', $text, 1));
+        if (empty($text)) continue;
+        wh_log('[GROUP] trigger matched userId=' . $userId . ' text=' . mb_substr($text, 0, 30));
+    }
+
     // 許可ユーザーチェック（リストが空=未設定の間は全員受信）
     $allowed = empty($allowed_ids) || in_array($userId, $allowed_ids);
 
