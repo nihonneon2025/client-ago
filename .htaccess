@@ -39,3 +39,6 @@ Header always set X-Robots-Tag "noindex, nofollow"
 <Files "line-push.php">
     Require all granted
 </Files>
+<Files "line_push_debug.log">
+    Require all granted
+</Files>

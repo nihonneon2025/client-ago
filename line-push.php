@@ -52,5 +52,9 @@ $res  = curl_exec($ch);
 $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
+@file_put_contents(__DIR__ . '/line_push_debug.log',
+    date('Y-m-d H:i:s') . " to=$to code=$code body=" . mb_substr($res ?? '', 0, 300) . "\n",
+    FILE_APPEND | LOCK_EX);
+
 http_response_code($code);
 echo $res;
