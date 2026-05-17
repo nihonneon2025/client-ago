@@ -80,23 +80,39 @@ foreach ($events as $event) {
     $quoted_text = null;
     if (!empty($event['message']['quotedMessageId'])) {
         $quoted_id = $event['message']['quotedMessageId'];
-        // まず webhook の quote オブジェクトから取得を試みる
         $q = $event['message']['quote'] ?? [];
+
+        // ① テキスト引用
         if (!empty($q['text'])) {
             $quoted_text = $q['text'];
         }
-        // なければ保存済みメッセージキャッシュから照合
+
+        // ② ファイル・画像・動画の引用 → その場で即ダウンロード
+        if (!$quoted_text && !empty($q['type']) && in_array($q['type'], ['file', 'image', 'video']) && $LINE_CHANNEL_TOKEN) {
+            $qtype = $q['type'];
+            $fname = $q['fileName'] ?? ($qtype === 'image' ? $quoted_id . '.jpg' : $quoted_id . '.bin');
+            $url   = save_line_file($quoted_id, $LINE_CHANNEL_TOKEN, $fname);
+            if ($url) {
+                $quoted_text = '[ファイル:' . $fname . ' URL:' . $url . ']';
+                wh_log('[QUOTE_DL] type=' . $qtype . ' url=' . $url);
+            } else {
+                $quoted_text = '[ファイル:' . $fname . ' (ダウンロード失敗)]';
+                wh_log('[QUOTE_DL] FAIL type=' . $qtype . ' id=' . $quoted_id);
+            }
+        }
+
+        // ③ キャッシュから照合（フォールバック）
         if (!$quoted_text) {
             $msg_cache = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
             $cached = $msg_cache[$quoted_id] ?? null;
             if (is_array($cached) && isset($cached['url'])) {
-                // ファイルキャッシュ（ダウンロード済み）
                 $quoted_text = '[ファイル:' . ($cached['filename'] ?? 'file') . ' URL:' . $cached['url'] . ']';
             } elseif (is_string($cached)) {
                 $quoted_text = $cached;
             }
         }
-        wh_log('[QUOTE] quoted_id=' . $quoted_id . ' text=' . mb_substr($quoted_text ?? '(not found)', 0, 40));
+
+        wh_log('[QUOTE] id=' . $quoted_id . ' q_type=' . ($q['type'] ?? 'none') . ' result=' . mb_substr($quoted_text ?? '(none)', 0, 60));
     }
 
     if (empty($text) || empty($userId)) continue;
