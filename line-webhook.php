@@ -60,11 +60,23 @@ foreach ($events as $event) {
     $source     = $groupId ? 'group' : 'direct';
     $replyToken = $event['replyToken'] ?? null;
 
+    // リプライ（引用）メッセージの内容を取得
+    $quoted_text = null;
+    if (!empty($event['message']['quotedMessageId'])) {
+        $q = $event['message']['quote'] ?? [];
+        if (!empty($q['text'])) {
+            $quoted_text = $q['text'];
+        } elseif (!empty($q['type'])) {
+            $quoted_text = '[' . $q['type'] . ']';
+        }
+        wh_log('[QUOTE] quoted_id=' . $event['message']['quotedMessageId'] . ' text=' . mb_substr($quoted_text ?? '', 0, 40));
+    }
+
     if (empty($text) || empty($userId)) continue;
 
     // グループチャットの場合：トリガーワードがなければ無視
     if ($groupId) {
-        $trigger = '/^(ウルバン|urvan|URVAN|urban|URBAN)[\s、,　]/ui';
+        $trigger = '/^(ウルバン|urvan|URVAN|urban|URBAN)[\s、,　。]/ui';
         if (!preg_match($trigger, $text)) continue;
         // トリガーワードを除いた本文だけ処理する
         $text = trim(preg_replace($trigger, '', $text, 1));
@@ -82,6 +94,7 @@ foreach ($events as $event) {
         'userId'      => $userId,
         'source'      => $source,
         'text'        => $text,
+        'quoted_text' => $quoted_text,
         'status'      => $allowed ? 'received' : 'blocked',
         'project_id'  => null,
         'error'       => null,

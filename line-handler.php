@@ -7,9 +7,15 @@
 function processLineMessage($log_entry, $api_key, $line_token = '') {
     $userId      = $log_entry['userId'];
     $text        = $log_entry['text'];
+    $quoted_text = $log_entry['quoted_text'] ?? null;
     $log_id      = $log_entry['id'];
     $ts          = $log_entry['ts'];
     $reply_token = $log_entry['reply_token'] ?? null;
+
+    // リプライ（引用）がある場合は本文の前に引用元を付加
+    if ($quoted_text) {
+        $text = "【引用メッセージ】\n{$quoted_text}\n\n【指示】\n{$text}";
+    }
     $base_url    = 'https://system002-od.ordermade-neon.com';
 
     ago_log_update($log_id, ['status' => 'processing']);
