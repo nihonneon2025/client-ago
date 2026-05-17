@@ -103,7 +103,10 @@ echo json_encode(['status' => 'ok']);
 // ── LINE返信 ────────────────────────────────────────────────────
 
 function line_reply($token, $replyToken, $message) {
-    if (empty($token) || empty($replyToken)) return;
+    if (empty($token) || empty($replyToken)) {
+        wh_log('[line_reply] skipped: token=' . (empty($token) ? 'EMPTY' : 'SET') . ' replyToken=' . (empty($replyToken) ? 'EMPTY' : 'SET'));
+        return;
+    }
     $payload = [
         'replyToken' => $replyToken,
         'messages'   => [['type' => 'text', 'text' => $message]]
@@ -119,8 +122,11 @@ function line_reply($token, $replyToken, $message) {
         ],
         CURLOPT_TIMEOUT => 10
     ]);
-    curl_exec($ch);
+    $res  = curl_exec($ch);
+    $err  = curl_error($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    wh_log('[line_reply] status=' . $code . ' err=' . ($err ?: 'none') . ' body=' . mb_substr($res, 0, 200));
 }
 
 // ── KVストアヘルパー ──────────────────────────────────────────────
