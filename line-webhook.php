@@ -86,7 +86,7 @@ foreach ($events as $event) {
 
     // APIキーがあればAI処理
     if ($api_key) {
-        wh_log('[INFO] calling AI for userId=' . substr($userId, -6) . ' text=' . mb_substr($text, 0, 30));
+        wh_log('[INFO] calling AI for userId=' . $userId . ' text=' . mb_substr($text, 0, 30));
         require_once __DIR__ . '/line-handler.php';
         processLineMessage($log_entry, $api_key, $LINE_CHANNEL_TOKEN);
         wh_log('[DONE] processLineMessage returned');
