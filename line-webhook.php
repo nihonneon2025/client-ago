@@ -129,44 +129,57 @@ function line_reply($token, $replyToken, $message) {
     wh_log('[line_reply] status=' . $code . ' err=' . ($err ?: 'none') . ' body=' . mb_substr($res, 0, 200));
 }
 
-// ── KVストアヘルパー（curl版・allow_url_fopen不要） ──────────────
+// ── KVストアヘルパー（api.phpはkv_getAll/kv_setのみ対応） ────────
 
-function _kv_curl($action, $key, $value = null) {
-    $base    = 'https://' . $_SERVER['HTTP_HOST'];
-    $payload = ['action' => $action, 'key' => $key];
-    if ($value !== null) $payload['value'] = $value;
-    $ch = curl_init($base . '/api.php');
+function _kv_base_url() {
+    return 'https://' . $_SERVER['HTTP_HOST'];
+}
+
+function _kv_fetch_all() {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $ch = curl_init(_kv_base_url() . '/api.php');
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => json_encode($payload),
-        CURLOPT_HTTPHEADER     => [
-            'Content-Type: application/json',
-            'X-AGO-Token: system002-od',
-        ],
-        CURLOPT_TIMEOUT        => 5,
+        CURLOPT_POSTFIELDS     => json_encode(['action' => 'kv_getAll']),
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-AGO-Token: system002-od'],
+        CURLOPT_TIMEOUT        => 8,
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
     ]);
     $res = curl_exec($ch);
     $err = curl_error($ch);
     curl_close($ch);
-    if ($err) {
-        wh_log('[kv curl err] key=' . $key . ' err=' . $err);
-        return false;
+    if ($err || !$res) {
+        wh_log('[kv_getAll err] ' . $err);
+        $cache = [];
+        return $cache;
     }
-    return $res;
+    $data  = json_decode($res, true);
+    $cache = $data['data'] ?? [];
+    wh_log('[kv_getAll] ' . count($cache) . ' keys loaded');
+    return $cache;
 }
 
 function ago_kv_get($key) {
-    $res = _kv_curl('kv_get', $key);
-    if (!$res) return null;
-    $data = json_decode($res, true);
-    return $data['value'] ?? null;
+    $all = _kv_fetch_all();
+    return $all[$key] ?? null;
 }
 
 function ago_kv_set($key, $value) {
-    _kv_curl('kv_set', $key, $value);
+    $ch = curl_init(_kv_base_url() . '/api.php');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode(['action' => 'kv_set', 'key' => $key, 'value' => $value]),
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-AGO-Token: system002-od'],
+        CURLOPT_TIMEOUT        => 5,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+    ]);
+    curl_exec($ch);
+    curl_close($ch);
 }
 
 function ago_log_save($new_entry) {

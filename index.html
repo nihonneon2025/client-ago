@@ -9338,20 +9338,9 @@ async function initLineTab() {
   const urlEl = document.getElementById('webhook-url-text');
   if (urlEl) urlEl.textContent = location.origin + '/line-webhook.php';
 
-  // セットアップ状況確認（ローカルに設定フラグを持つ）
-  const apiKeyOk  = !!localStorage.getItem('ago_line_apikey_set');
-  const tokenOk   = !!localStorage.getItem('ago_line_token_set');
-  const banner    = document.getElementById('line-setup-banner');
-  const setupItems = document.getElementById('line-setup-items');
-  const missing = [];
-  if (!apiKeyOk)  missing.push('・ AnthropicのAPIキー（AIで自動清書するために必要）');
-  if (!tokenOk)   missing.push('・ LINEチャンネルアクセストークン（LINEを受信するために必要）');
-  if (missing.length > 0 && banner) {
-    banner.style.display = 'block';
-    setupItems.innerHTML = missing.join('<br>') + '<br><span style="color:#888;font-size:11px">→ AGOオフィスでの設定後に動作します</span>';
-  } else if (banner) {
-    banner.style.display = 'none';
-  }
+  // セットアップ完了済み（api-config.phpでサーバー側設定済み）
+  const banner = document.getElementById('line-setup-banner');
+  if (banner) banner.style.display = 'none';
 
   // 許可ユーザーリスト描画
   renderAllowedUsers();
@@ -9360,21 +9349,32 @@ async function initLineTab() {
   await renderLineLogs();
 }
 
-async function kvGet(key) {
+const KV_API_URL = 'https://system002-od.ordermade-neon.com/api.php';
+
+async function kvGetAll() {
   try {
-    const res = await fetch('api.php', {
+    const res = await fetch(KV_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-AGO-Token': 'system002-od' },
-      body: JSON.stringify({ action: 'kv_get', key })
+      body: JSON.stringify({ action: 'kv_getAll' })
     });
     const data = await res.json();
-    return data.value ? JSON.parse(data.value) : null;
+    return data.data || {};
+  } catch(e) { return {}; }
+}
+
+async function kvGet(key) {
+  try {
+    const all = await kvGetAll();
+    const val = all[key];
+    if (!val) return null;
+    return JSON.parse(val);
   } catch(e) { return null; }
 }
 
 async function kvSet(key, value) {
   try {
-    await fetch('api.php', {
+    await fetch(KV_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-AGO-Token': 'system002-od' },
       body: JSON.stringify({ action: 'kv_set', key, value: JSON.stringify(value) })
