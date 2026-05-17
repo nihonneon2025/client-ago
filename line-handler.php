@@ -137,7 +137,9 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     // ── 5. システムプロンプト ───────────────────────────────────────
     $data_json   = json_encode($proj_list,   JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     $orders_json = json_encode($order_list,  JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-    $is_onodera = ($onodera_id && $userId === $onodera_id);
+    $is_onodera    = ($onodera_id && $userId === $onodera_id);
+    $is_kanno_str  = ($kanno_id && $userId === $kanno_id) ? 'はい' : 'いいえ';
+    $is_onodera_str = $is_onodera ? 'はい' : 'いいえ';
     $system = <<<SYS
 あなたはAGOグループのLINE AIアシスタント「ウルバン」です。
 スタッフからのLINEを受け取り、業務システムを操作しながら何でも自律的に対応します。
@@ -162,7 +164,7 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 - 小野寺（LINE ID登録済み）: AGO SYSTEM MANAGERの開発担当。システム改修・設定の責任者。
 
 ## 送信者
-{$user_name}（菅野社長本人: {$kanno_id && $userId===$kanno_id ? 'はい' : 'いいえ'} / 小野寺: {$is_onodera ? 'はい' : 'いいえ'}）
+{$user_name}（菅野社長本人: {$is_kanno_str} / 小野寺: {$is_onodera_str}）
 
 ## 今日の日付
 {$ts}
