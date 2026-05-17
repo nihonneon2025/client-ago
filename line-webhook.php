@@ -1,17 +1,16 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
 
-// ===== 設定（AGO訪問時に入力する) =====
-$LINE_CHANNEL_SECRET = '';  // ← LINEチャンネルシークレット
-$LINE_CHANNEL_TOKEN  = '';  // ← LINEチャンネルアクセストークン
-// ======================================
-
-// APIキーはapi-config.phpから取得
-$api_key = '';
+// APIキー・LINEトークンはapi-config.phpから取得
+$api_key             = '';
+$LINE_CHANNEL_SECRET = '';
+$LINE_CHANNEL_TOKEN  = '';
 $config_file = __DIR__ . '/api-config.php';
 if (file_exists($config_file)) {
     require $config_file;
-    $api_key = defined('ANTHROPIC_API_KEY') ? ANTHROPIC_API_KEY : '';
+    $api_key             = defined('ANTHROPIC_API_KEY')   ? ANTHROPIC_API_KEY   : '';
+    $LINE_CHANNEL_SECRET = defined('LINE_CHANNEL_SECRET') ? LINE_CHANNEL_SECRET : '';
+    $LINE_CHANNEL_TOKEN  = defined('LINE_CHANNEL_TOKEN')  ? LINE_CHANNEL_TOKEN  : '';
 }
 
 // 許可ユーザーIDはKVストアから動的に読み込む
