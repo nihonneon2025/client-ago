@@ -615,6 +615,9 @@ function execute_action($action, $userId, $users_map, $ts, $line_token = '', $ka
             // グループ返信先・送信者名（line-handler.phpで注入済み）
             $reply_target = $action['_reply_target'] ?? $userId;
             $sender_name  = $action['_sender_name']  ?? ($users_map[$userId] ?? ('スタッフ(' . substr($userId, -6) . ')'));
+            // AIが「スタッフからの依頼」と書いた場合でも正しい送信者名に強制上書き
+            $prompt = preg_replace('/^(スタッフ|担当者|ユーザー)からの[依頼指示]+[:：]\s*/u', '', $prompt);
+            $prompt = "{$sender_name}からの指示:\n{$prompt}";
             $queue_raw = ago_kv_get('ago_claude_queue');
             $queue = json_decode($queue_raw ?? '[]', true) ?: [];
             if (!is_array($queue) || isset($queue['id'])) $queue = [];  // 壊れた構造をリセット
