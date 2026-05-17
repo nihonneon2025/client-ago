@@ -52,6 +52,22 @@ if ($LINE_CHANNEL_SECRET) {
 $events = $data['events'] ?? [];
 foreach ($events as $event) {
     if ($event['type'] !== 'message') continue;
+
+    // ファイル・画像メッセージ: ダウンロードしてキャッシュ（返信なし）
+    if (in_array($event['message']['type'], ['file', 'image']) && $LINE_CHANNEL_TOKEN) {
+        $fid   = $event['message']['id'];
+        $fname = $event['message']['fileName'] ?? ($event['message']['type'] . '_' . $fid);
+        $url   = save_line_file($fid, $LINE_CHANNEL_TOKEN, $fname);
+        if ($url) {
+            $msg_cache = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
+            $msg_cache[$fid] = ['type' => $event['message']['type'], 'url' => $url, 'filename' => $fname];
+            if (count($msg_cache) > 200) $msg_cache = array_slice($msg_cache, -200, null, true);
+            ago_kv_set('ago_line_msg_cache', json_encode($msg_cache, JSON_UNESCAPED_UNICODE));
+            wh_log('[FILE] saved id=' . $fid . ' url=' . $url);
+        } else {
+            wh_log('[FILE] download failed id=' . $fid);
+        }
+    }
     if ($event['message']['type'] !== 'text') continue;
 
     $userId     = $event['source']['userId'] ?? '';
@@ -72,7 +88,13 @@ foreach ($events as $event) {
         // なければ保存済みメッセージキャッシュから照合
         if (!$quoted_text) {
             $msg_cache = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
-            $quoted_text = $msg_cache[$quoted_id] ?? null;
+            $cached = $msg_cache[$quoted_id] ?? null;
+            if (is_array($cached) && isset($cached['url'])) {
+                // ファイルキャッシュ（ダウンロード済み）
+                $quoted_text = '[ファイル:' . ($cached['filename'] ?? 'file') . ' URL:' . $cached['url'] . ']';
+            } elseif (is_string($cached)) {
+                $quoted_text = $cached;
+            }
         }
         wh_log('[QUOTE] quoted_id=' . $quoted_id . ' text=' . mb_substr($quoted_text ?? '(not found)', 0, 40));
     }
@@ -210,6 +232,30 @@ function ago_kv_set($key, $value) {
     ]);
     curl_exec($ch);
     curl_close($ch);
+}
+
+// LINE Content API からファイルをダウンロードしてサーバーに保存
+function save_line_file($message_id, $token, $filename) {
+    $ch = curl_init('https://api-data.line.me/v2/bot/message/' . $message_id . '/content');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $token],
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+    ]);
+    $content = curl_exec($ch);
+    $code    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err     = curl_error($ch);
+    curl_close($ch);
+    wh_log('[save_line_file] id=' . $message_id . ' code=' . $code . ' err=' . ($err ?: 'none') . ' size=' . strlen($content ?? ''));
+    if ($code !== 200 || !$content) return null;
+    $dir = __DIR__ . '/uploads/line_files/';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $safe   = preg_replace('/[^a-zA-Z0-9._\-]/u', '_', $filename);
+    $unique = date('YmdHis') . '_' . substr($message_id, -8) . '_' . $safe;
+    if (file_put_contents($dir . $unique, $content) === false) return null;
+    return 'https://' . $_SERVER['HTTP_HOST'] . '/uploads/line_files/' . $unique;
 }
 
 function ago_log_save($new_entry) {

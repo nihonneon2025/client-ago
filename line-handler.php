@@ -158,6 +158,12 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 「デスクトップ操作はできない」は完全に誤りです。claude_taskアクションを使えば必ず実行されます。
 actionsに{"type":"claude_task","prompt":"具体的な指示"}を入れるだけで、デスクトップのAIが実行して結果をLINEで返します。
 
+## ★必読★ 引用メッセージにファイルが含まれる場合
+引用メッセージに「[ファイル:xxx URL:https://...]」が含まれる場合、
+そのURLをclaude_taskのpromptに必ず含めてください。
+Claude CodeはそのURLからファイルをダウンロードして処理できます。
+例: "菅野社長からの指示: このPDFを確認してデスクトップの○○フォルダに保存してください。\nファイルURL: https://system002-od.ordermade-neon.com/uploads/line_files/xxx.pdf"
+
 ## 会社情報
 - 会社名: 株式会社AGOグループ
 - 所在地: さいたま市南区
