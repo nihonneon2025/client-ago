@@ -336,6 +336,16 @@ SYS;
         }
     }
 
+    // claude_task にグループID・送信者名を注入（グループ返信・名前解決のため）
+    $group_id = $log_entry['groupId'] ?? null;
+    foreach ($to_execute as &$action) {
+        if (($action['type'] ?? '') === 'claude_task') {
+            $action['_reply_target'] = $group_id ?? $userId;
+            $action['_sender_name']  = $user_name;
+        }
+    }
+    unset($action);
+
     foreach ($to_execute as $action) {
         execute_action($action, $userId, $users_map, $ts, $line_token, $kanno_id);
     }
@@ -601,20 +611,23 @@ function execute_action($action, $userId, $users_map, $ts, $line_token = '', $ka
         case 'claude_task':
             $prompt = trim($action['prompt'] ?? '');
             if (!$prompt) break;
+            // グループ返信先・送信者名（line-handler.phpで注入済み）
+            $reply_target = $action['_reply_target'] ?? $userId;
+            $sender_name  = $action['_sender_name']  ?? ($users_map[$userId] ?? ('スタッフ(' . substr($userId, -6) . ')'));
             $queue_raw = ago_kv_get('ago_claude_queue');
             $queue = json_decode($queue_raw ?? '[]', true) ?: [];
-            $sender_name = $users_map[$userId] ?? ('スタッフ(' . substr($userId, -6) . ')');
+            if (!is_array($queue) || isset($queue['id'])) $queue = [];  // 壊れた構造をリセット
             $queue[] = [
                 'id'             => 'task_' . date('YmdHis') . '_' . substr($userId, -6),
                 'status'         => 'pending',
                 'prompt'         => $prompt,
-                'requester_id'   => $userId,
+                'requester_id'   => $reply_target,
                 'requester_name' => $sender_name,
                 'created_at'     => $ts,
                 'result'         => null,
                 'completed_at'   => null,
             ];
-            ago_kv_set('ago_claude_queue', json_encode($queue, JSON_UNESCAPED_UNICODE));
+            ago_kv_set('ago_claude_queue', json_encode(array_values($queue), JSON_UNESCAPED_UNICODE));
             break;
 
         case 'confirm_pending_actions':
