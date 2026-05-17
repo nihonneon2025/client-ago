@@ -184,8 +184,12 @@ function ago_kv_set($key, $value) {
 
 function ago_log_save($new_entry) {
     $raw  = ago_kv_get('ago_line_logs');
+    wh_log('[ago_log_save] raw=' . ($raw === null ? 'NULL' : mb_substr($raw, 0, 60)));
     $logs = json_decode($raw ?? '[]', true) ?: [];
     array_unshift($logs, $new_entry);
     if (count($logs) > 200) $logs = array_slice($logs, 0, 200);
-    ago_kv_set('ago_line_logs', json_encode($logs, JSON_UNESCAPED_UNICODE));
+    $encoded = json_encode($logs, JSON_UNESCAPED_UNICODE);
+    wh_log('[ago_log_save] saving count=' . count($logs) . ' encoded_len=' . strlen($encoded));
+    ago_kv_set('ago_line_logs', $encoded);
+    wh_log('[ago_log_save] kv_set done');
 }
