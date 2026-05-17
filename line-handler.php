@@ -219,6 +219,9 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     // {"type":"set_schedule","date":"2026-05-17","entries":[{"time":"10:00","desc":"田中建設の現場"},{"time":"14:00","desc":"打ち合わせ"}]}
     // {"type":"clear_schedule","date":"2026-05-17"}
     // {"type":"confirm_pending_actions","confirmed":[1,3],"declined":[{"no":2,"reason":"理由テキスト（省略可）"}]}  // 確認待ちを承認/却下。declinedにはno必須、reasonは菅野さんがNOの理由を添えた場合のみ
+    // {"type":"claude_task","prompt":"デスクトップのClaude Codeに渡す指示を詳しく書く"}
+    // ← 以下の場合にのみ使う: フォルダ作成・複数担当AIへの委託・外部ツール操作・複雑な多段階処理
+    // ← 単純な状態更新・照会・書類作成はclaude_taskを使わず自分で処理する
   ]
 }
 
@@ -272,7 +275,7 @@ SYS;
     // ── 7. アクション分類（即実行 vs 確認キュー） ────────────────────
     $CONFIRM_ALWAYS   = ['create_estimate','create_invoice','create_purchase_order','update_phase'];
     $CONFIRM_LEARNING = ['update_order_status','create_project'];
-    $NO_CONFIRM       = ['register_name','set_schedule','clear_schedule','confirm_pending_actions'];
+    $NO_CONFIRM       = ['register_name','set_schedule','clear_schedule','confirm_pending_actions','claude_task'];
 
     $to_execute = [];
     $to_confirm = [];
@@ -544,6 +547,25 @@ function execute_action($action, $userId, $users_map, $ts, $line_token = '', $ka
                 'source'       => 'line',
             ]);
             ago_kv_set('ago_purchase_orders', json_encode($pos, JSON_UNESCAPED_UNICODE));
+            break;
+
+        case 'claude_task':
+            $prompt = trim($action['prompt'] ?? '');
+            if (!$prompt) break;
+            $queue_raw = ago_kv_get('ago_claude_queue');
+            $queue = json_decode($queue_raw ?? '[]', true) ?: [];
+            $sender_name = $users_map[$userId] ?? ('スタッフ(' . substr($userId, -6) . ')');
+            $queue[] = [
+                'id'             => 'task_' . date('YmdHis') . '_' . substr($userId, -6),
+                'status'         => 'pending',
+                'prompt'         => $prompt,
+                'requester_id'   => $userId,
+                'requester_name' => $sender_name,
+                'created_at'     => $ts,
+                'result'         => null,
+                'completed_at'   => null,
+            ];
+            ago_kv_set('ago_claude_queue', json_encode($queue, JSON_UNESCAPED_UNICODE));
             break;
 
         case 'confirm_pending_actions':
