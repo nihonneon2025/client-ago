@@ -303,6 +303,10 @@ SYS;
     preg_match('/\{[\s\S]*\}/u', $clean, $m);
     $parsed = json_decode($m[0] ?? '{}', true);
 
+    // デバッグ：AIの生応答とactionsを記録
+    wh_log('[AI_RAW] ' . mb_substr($raw ?? 'NULL', 0, 200));
+    wh_log('[AI_ACTIONS] ' . json_encode($parsed['actions'] ?? [], JSON_UNESCAPED_UNICODE));
+
     $reply_msg = $parsed['reply'] ?? 'すみません、処理できませんでした。もう一度お試しください。';
     $actions   = $parsed['actions'] ?? [];
 
