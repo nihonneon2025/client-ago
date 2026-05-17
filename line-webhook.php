@@ -117,6 +117,15 @@ foreach ($events as $event) {
 
     if (empty($text) || empty($userId)) continue;
 
+    // 完了タスクの保留通知があれば即リプライで伝える
+    $notify_key = 'ago_pending_notify_' . ($groupId ?? $userId);
+    $pending_notify = ago_kv_get($notify_key);
+    if ($pending_notify && $replyToken && $LINE_CHANNEL_TOKEN) {
+        line_reply($LINE_CHANNEL_TOKEN, $replyToken, $pending_notify);
+        ago_kv_set($notify_key, '');
+        wh_log('[NOTIFY] delivered pending result to ' . ($groupId ?? $userId));
+    }
+
     // グループチャットの場合：トリガーワードがなければ無視
     if ($groupId) {
         $trigger = '/^(ウルバン|urvan|URVAN|urban|URBAN)[\s、,　。]/ui';
