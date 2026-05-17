@@ -15,9 +15,15 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     ago_log_update($log_id, ['status' => 'processing']);
 
     // ── 1. ユーザー名解決 ───────────────────────────────────────────
-    $users_map = json_decode(ago_kv_get('ago_line_users') ?? '{}', true) ?: [];
+    $users_map   = json_decode(ago_kv_get('ago_line_users') ?? '{}', true) ?: [];
+    $kanno_id    = defined('KANNO_LINE_ID')   ? KANNO_LINE_ID   : '';
+    $onodera_id  = defined('ONODERA_LINE_ID') ? ONODERA_LINE_ID : '';
+
+    // 既知のIDは名前を自動セット（KVに未登録でも識別可能）
+    if (empty($users_map[$kanno_id])   && $kanno_id)   $users_map[$kanno_id]   = '菅野社長';
+    if (empty($users_map[$onodera_id]) && $onodera_id) $users_map[$onodera_id] = '小野寺';
+
     $user_name = $users_map[$userId] ?? ('スタッフ(' . substr($userId, -6) . ')');
-    $kanno_id  = defined('KANNO_LINE_ID') ? KANNO_LINE_ID : '';
 
     // ── 2. 全業務データ読込 ─────────────────────────────────────────
     $projects  = json_decode(ago_kv_get('ago_projects')        ?? '[]', true) ?: [];
