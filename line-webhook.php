@@ -129,33 +129,44 @@ function line_reply($token, $replyToken, $message) {
     wh_log('[line_reply] status=' . $code . ' err=' . ($err ?: 'none') . ' body=' . mb_substr($res, 0, 200));
 }
 
-// ── KVストアヘルパー ──────────────────────────────────────────────
+// ── KVストアヘルパー（curl版・allow_url_fopen不要） ──────────────
+
+function _kv_curl($action, $key, $value = null) {
+    $base    = 'https://' . $_SERVER['HTTP_HOST'];
+    $payload = ['action' => $action, 'key' => $key];
+    if ($value !== null) $payload['value'] = $value;
+    $ch = curl_init($base . '/api.php');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_HTTPHEADER     => [
+            'Content-Type: application/json',
+            'X-AGO-Token: system002-od',
+        ],
+        CURLOPT_TIMEOUT        => 5,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+    ]);
+    $res = curl_exec($ch);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($err) {
+        wh_log('[kv curl err] key=' . $key . ' err=' . $err);
+        return false;
+    }
+    return $res;
+}
 
 function ago_kv_get($key) {
-    $base = 'https://' . $_SERVER['HTTP_HOST'];
-    $res  = @file_get_contents($base . '/api.php', false, stream_context_create([
-        'http' => [
-            'method'  => 'POST',
-            'header'  => "Content-Type: application/json\r\nX-AGO-Token: system002-od\r\n",
-            'content' => json_encode(['action' => 'kv_get', 'key' => $key]),
-            'timeout' => 10
-        ]
-    ]));
+    $res = _kv_curl('kv_get', $key);
     if (!$res) return null;
     $data = json_decode($res, true);
     return $data['value'] ?? null;
 }
 
 function ago_kv_set($key, $value) {
-    $base = 'https://' . $_SERVER['HTTP_HOST'];
-    @file_get_contents($base . '/api.php', false, stream_context_create([
-        'http' => [
-            'method'  => 'POST',
-            'header'  => "Content-Type: application/json\r\nX-AGO-Token: system002-od\r\n",
-            'content' => json_encode(['action' => 'kv_set', 'key' => $key, 'value' => $value]),
-            'timeout' => 10
-        ]
-    ]));
+    _kv_curl('kv_set', $key, $value);
 }
 
 function ago_log_save($new_entry) {
