@@ -9360,11 +9360,33 @@ async function initLineTab() {
   await renderLineLogs();
 }
 
-function renderAllowedUsers() {
-  const allowed = lsLoad(LS_LINE_ALLOWED);
+async function kvGet(key) {
+  try {
+    const res = await fetch('api.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-AGO-Token': 'system002-od' },
+      body: JSON.stringify({ action: 'kv_get', key })
+    });
+    const data = await res.json();
+    return data.value ? JSON.parse(data.value) : null;
+  } catch(e) { return null; }
+}
+
+async function kvSet(key, value) {
+  try {
+    await fetch('api.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-AGO-Token': 'system002-od' },
+      body: JSON.stringify({ action: 'kv_set', key, value: JSON.stringify(value) })
+    });
+  } catch(e) {}
+}
+
+async function renderAllowedUsers() {
+  const allowed = await kvGet(LS_LINE_ALLOWED) || [];
   const el = document.getElementById('line-allowed-list');
   if (!el) return;
-  if (!allowed || allowed.length === 0) {
+  if (allowed.length === 0) {
     el.innerHTML = '<div style="font-size:12px;color:#f59e0b;padding:6px 0">未登録（全員からの受信を許可中）</div>';
     return;
   }
@@ -9375,27 +9397,27 @@ function renderAllowedUsers() {
     </div>`).join('');
 }
 
-function addAllowedUser() {
+async function addAllowedUser() {
   const input = document.getElementById('line-userid-input');
   const uid   = (input.value || '').trim();
   if (!uid.startsWith('U') || uid.length < 10) {
     showToast('LINEユーザーIDはUから始まる文字列です');
     return;
   }
-  const allowed = lsLoad(LS_LINE_ALLOWED) || [];
+  const allowed = await kvGet(LS_LINE_ALLOWED) || [];
   if (allowed.includes(uid)) { showToast('すでに登録済みです'); return; }
   allowed.push(uid);
-  lsSave(LS_LINE_ALLOWED, allowed);
+  await kvSet(LS_LINE_ALLOWED, allowed);
   input.value = '';
-  renderAllowedUsers();
+  await renderAllowedUsers();
   showToast('追加しました');
 }
 
-function removeAllowedUser(index) {
-  const allowed = lsLoad(LS_LINE_ALLOWED) || [];
+async function removeAllowedUser(index) {
+  const allowed = await kvGet(LS_LINE_ALLOWED) || [];
   allowed.splice(index, 1);
-  lsSave(LS_LINE_ALLOWED, allowed);
-  renderAllowedUsers();
+  await kvSet(LS_LINE_ALLOWED, allowed);
+  await renderAllowedUsers();
   showToast('削除しました');
 }
 
@@ -9404,9 +9426,19 @@ async function renderLineLogs() {
   if (!el) return;
   el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:16px">読み込み中...</div>';
 
-  // KVストアから取得を試みる（失敗時はlocalStorageにフォールバック）
-  // localStorageから直接読む（KVストアのkv_getは未対応のためフォールバック）
-  const logs = lsLoad(LS_LINE_LOGS) || [];
+  // サーバーKVストアから取得（api.php）
+  let logs = [];
+  try {
+    const res = await fetch('api.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-AGO-Token': 'system002-od' },
+      body: JSON.stringify({ action: 'kv_get', key: 'ago_line_logs' })
+    });
+    const data = await res.json();
+    if (data.value) logs = JSON.parse(data.value) || [];
+  } catch(e) {
+    logs = lsLoad(LS_LINE_LOGS) || [];
+  }
 
   if (logs.length === 0) {
     el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:24px 0">受信メッセージはここに表示されます</div>';
