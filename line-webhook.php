@@ -97,6 +97,7 @@ foreach ($events as $event) {
         'id'          => date('YmdHis') . '_' . substr($userId, -6),
         'ts'          => date('Y-m-d H:i:s'),
         'userId'      => $userId,
+        'groupId'     => $groupId,
         'source'      => $source,
         'text'        => $text,
         'quoted_text' => $quoted_text,

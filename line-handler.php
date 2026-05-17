@@ -30,6 +30,7 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     if (empty($users_map[$onodera_id]) && $onodera_id) $users_map[$onodera_id] = '小野寺';
 
     $user_name = $users_map[$userId] ?? ('スタッフ(' . substr($userId, -6) . ')');
+    wh_log('[HANDLER] userId=' . $userId . ' kanno_id=' . ($kanno_id ?: 'EMPTY') . ' user_name=' . $user_name . ' groupId=' . ($log_entry['groupId'] ?? 'none'));
 
     // ── 2. 全業務データ読込 ─────────────────────────────────────────
     $projects  = json_decode(ago_kv_get('ago_projects')        ?? '[]', true) ?: [];
