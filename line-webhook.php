@@ -1,6 +1,14 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
 
+// ファイルベースのデバッグログ（api.php不要・サーバー上のwh_debug.logに書き込む）
+function wh_log($msg) {
+    $line = date('Y-m-d H:i:s') . ' ' . $msg . "\n";
+    @file_put_contents(__DIR__ . '/wh_debug.log', $line, FILE_APPEND | LOCK_EX);
+}
+
+wh_log('[START] webhook called');
+
 // APIキー・LINEトークンはapi-config.phpから取得
 $api_key             = '';
 $LINE_CHANNEL_SECRET = '';
@@ -11,6 +19,9 @@ if (file_exists($config_file)) {
     $api_key             = defined('ANTHROPIC_API_KEY')   ? ANTHROPIC_API_KEY   : '';
     $LINE_CHANNEL_SECRET = defined('LINE_CHANNEL_SECRET') ? LINE_CHANNEL_SECRET : '';
     $LINE_CHANNEL_TOKEN  = defined('LINE_CHANNEL_TOKEN')  ? LINE_CHANNEL_TOKEN  : '';
+    wh_log('[OK] api-config.php loaded. api_key=' . (strlen($api_key) > 0 ? 'SET' : 'EMPTY') . ' token=' . (strlen($LINE_CHANNEL_TOKEN) > 0 ? 'SET' : 'EMPTY'));
+} else {
+    wh_log('[NG] api-config.php NOT FOUND');
 }
 
 // 許可ユーザーIDはKVストアから動的に読み込む
@@ -24,14 +35,17 @@ $body = file_get_contents('php://input');
 $data = json_decode($body, true);
 
 // 署名検証（チャンネルシークレットが設定済みの場合）
+wh_log('[INFO] body_len=' . strlen($body) . ' events=' . count($data['events'] ?? []));
 if ($LINE_CHANNEL_SECRET) {
     $signature = $_SERVER['HTTP_X_LINE_SIGNATURE'] ?? '';
     $expected  = base64_encode(hash_hmac('sha256', $body, $LINE_CHANNEL_SECRET, true));
     if (!hash_equals($expected, $signature)) {
+        wh_log('[NG] signature mismatch – returning 403');
         http_response_code(403);
         echo json_encode(['error' => 'Invalid signature']);
         exit;
     }
+    wh_log('[OK] signature verified');
 }
 
 // イベント処理
@@ -72,8 +86,10 @@ foreach ($events as $event) {
 
     // APIキーがあればAI処理
     if ($api_key) {
+        wh_log('[INFO] calling AI for userId=' . substr($userId, -6) . ' text=' . mb_substr($text, 0, 30));
         require_once __DIR__ . '/line-handler.php';
         processLineMessage($log_entry, $api_key, $LINE_CHANNEL_TOKEN);
+        wh_log('[DONE] processLineMessage returned');
     } else {
         // APIキー未設定の場合は受信確認だけ返す（トークンがあれば）
         if ($LINE_CHANNEL_TOKEN && $replyToken) {

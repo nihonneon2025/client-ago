@@ -22,3 +22,17 @@ Header always set X-Robots-Tag "noindex, nofollow"
 <Files "favicon.ico">
     Require all granted
 </Files>
+
+# LINEWebhook・API・デバッグ用はBasic認証なしでアクセス可能にする
+<Files "line-webhook.php">
+    Require all granted
+</Files>
+<Files "line-alert.php">
+    Require all granted
+</Files>
+<Files "api.php">
+    Require all granted
+</Files>
+<Files "line-debug.php">
+    Require all granted
+</Files>
