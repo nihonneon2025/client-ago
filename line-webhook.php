@@ -63,13 +63,18 @@ foreach ($events as $event) {
     // リプライ（引用）メッセージの内容を取得
     $quoted_text = null;
     if (!empty($event['message']['quotedMessageId'])) {
+        $quoted_id = $event['message']['quotedMessageId'];
+        // まず webhook の quote オブジェクトから取得を試みる
         $q = $event['message']['quote'] ?? [];
         if (!empty($q['text'])) {
             $quoted_text = $q['text'];
-        } elseif (!empty($q['type'])) {
-            $quoted_text = '[' . $q['type'] . ']';
         }
-        wh_log('[QUOTE] quoted_id=' . $event['message']['quotedMessageId'] . ' text=' . mb_substr($quoted_text ?? '', 0, 40));
+        // なければ保存済みメッセージキャッシュから照合
+        if (!$quoted_text) {
+            $msg_cache = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
+            $quoted_text = $msg_cache[$quoted_id] ?? null;
+        }
+        wh_log('[QUOTE] quoted_id=' . $quoted_id . ' text=' . mb_substr($quoted_text ?? '(not found)', 0, 40));
     }
 
     if (empty($text) || empty($userId)) continue;
@@ -150,6 +155,7 @@ function line_reply($token, $replyToken, $message) {
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     wh_log('[line_reply] status=' . $code . ' err=' . ($err ?: 'none') . ' body=' . mb_substr($res, 0, 200));
+    return json_decode($res, true) ?: [];
 }
 
 // ── KVストアヘルパー（api.phpはkv_getAll/kv_setのみ対応） ────────

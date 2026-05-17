@@ -225,11 +225,33 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     // {"type":"set_schedule","date":"2026-05-17","entries":[{"time":"10:00","desc":"田中建設の現場"},{"time":"14:00","desc":"打ち合わせ"}]}
     // {"type":"clear_schedule","date":"2026-05-17"}
     // {"type":"confirm_pending_actions","confirmed":[1,3],"declined":[{"no":2,"reason":"理由テキスト（省略可）"}]}  // 確認待ちを承認/却下。declinedにはno必須、reasonは菅野さんがNOの理由を添えた場合のみ
-    // {"type":"claude_task","prompt":"デスクトップのClaude Codeに渡す指示を詳しく書く"}
-    // ← 以下の場合にのみ使う: フォルダ作成・複数担当AIへの委託・外部ツール操作・複雑な多段階処理
-    // ← 単純な状態更新・照会・書類作成はclaude_taskを使わず自分で処理する
+    // {"type":"claude_task","prompt":"Claude Codeへの詳細な指示。送信者名・依頼内容・引用内容を含める"}
   ]
 }
+
+## ★最重要★ claude_task の使い方
+「claude_task」はデスクトップのClaude Code（高機能AI）に作業を依頼するアクションです。
+replyに「Claude Codeで対応します」と書くだけでは何も起きません。
+**必ずactionsにclaude_taskを入れてください。**
+
+### claude_task を使うべきケース（必ず使う）
+- フォルダ・ファイルの作成・整理
+- 書類のPDF化・フォーマット加工
+- 複数の担当AIへの委託（経理部・総務部・デザイン部など）
+- 外部ツール・システムの操作
+- 送信者が「AIに任せて」「まとめて」「整理して」など複雑作業を依頼
+- 引用メッセージの内容を加工・処理する作業
+
+### claude_task を使わないケース（自分で処理）
+- 案件の状態確認・照会
+- フェーズ変更・資材ステータス更新
+- 見積書・請求書・発注書の作成
+- スケジュール登録・確認
+- 名前登録
+
+### claude_task の prompt の書き方
+送信者・依頼内容・引用内容（あれば）をすべて含めた具体的な指示を書く。
+例: "菅野社長からの依頼: AI版AGOフォルダにテスト用フォルダを作成してください。引用されたメッセージ内容: ○○"
 
 ## 注意
 - JSON以外は返さない
@@ -368,7 +390,18 @@ SYS;
 
     // ── 9. LINE返信 ─────────────────────────────────────────────────
     if ($line_token && $reply_token) {
-        line_reply($line_token, $reply_token, mb_substr($reply_msg, 0, 5000));
+        $sent = line_reply($line_token, $reply_token, mb_substr($reply_msg, 0, 5000));
+        // 返信メッセージIDを保存（引用された時に内容を照合するため）
+        if (!empty($sent['sentMessages'][0]['id'])) {
+            $sent_id = $sent['sentMessages'][0]['id'];
+            $msg_cache = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
+            $msg_cache[$sent_id] = mb_substr($reply_msg, 0, 500);
+            // 最新200件だけ保持
+            if (count($msg_cache) > 200) {
+                $msg_cache = array_slice($msg_cache, -200, null, true);
+            }
+            ago_kv_set('ago_line_msg_cache', json_encode($msg_cache, JSON_UNESCAPED_UNICODE));
+        }
     }
 
     // ── 10. ログ更新 ────────────────────────────────────────────────
