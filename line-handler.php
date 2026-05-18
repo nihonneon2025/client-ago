@@ -322,7 +322,8 @@ SYS;
     wh_log('[AI_RAW] ' . mb_substr($raw ?? 'NULL', 0, 200));
     wh_log('[AI_ACTIONS] ' . json_encode($parsed['actions'] ?? [], JSON_UNESCAPED_UNICODE));
 
-    $reply_msg = $parsed['reply'] ?? 'すみません、処理できませんでした。もう一度お試しください。';
+    // JSON の reply が取れなかった場合は生テキストをそのまま使う（Claude が JSON を返さなかった場合の対処）
+    $reply_msg = $parsed['reply'] ?? (($raw && trim($raw)) ? trim($raw) : 'すみません、処理できませんでした。もう一度お試しください。');
     $actions   = $parsed['actions'] ?? [];
 
     // ── 7. アクション分類（即実行 vs 確認キュー） ────────────────────
