@@ -2603,7 +2603,9 @@ async function enablePush(silent = false) {
       });
       localStorage.setItem('push_vapid_key', VAPID_PUBLIC_KEY);
     }
-    const currentUser = JSON.parse(localStorage.getItem('ago_current_user') || '{}');
+    let currentUser = {};
+    try { currentUser = JSON.parse(localStorage.getItem('ago_current_user') || '{}'); } catch(e) {}
+    if (typeof currentUser !== 'object' || currentUser === null) currentUser = {};
     const userName = currentUser.name || localStorage.getItem('push_user') || 'default';
     localStorage.setItem('push_user', userName);
     const subResp = await fetch('subscribe.php', {method:'POST', headers:{'Content-Type':'application/json'},
