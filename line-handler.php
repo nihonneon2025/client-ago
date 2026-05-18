@@ -654,6 +654,7 @@ function execute_action($action, $userId, $users_map, $ts, $line_token = '', $ka
                 'created_at'     => $ts,
                 'result'         => null,
                 'completed_at'   => null,
+                'log_id'         => $log_id,
             ];
             ago_kv_set('ago_claude_queue', json_encode(array_values($queue), JSON_UNESCAPED_UNICODE));
             break;
