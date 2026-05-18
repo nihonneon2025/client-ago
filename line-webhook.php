@@ -220,14 +220,17 @@ function line_reply($token, $replyToken, $message) {
 }
 
 // ── KVストアヘルパー（api.phpはkv_getAll/kv_setのみ対応） ────────
+// $_AGO_KV_CACHE はリクエスト内キャッシュ。ago_kv_set が書いたら即反映させる
+// （旧 static キャッシュでは kv_set 後も古い値が残り ago_log_update が [] で上書きする問題が発生した）
+$_AGO_KV_CACHE = null;
 
 function _kv_base_url() {
     return 'https://' . $_SERVER['HTTP_HOST'];
 }
 
 function _kv_fetch_all() {
-    static $cache = null;
-    if ($cache !== null) return $cache;
+    global $_AGO_KV_CACHE;
+    if ($_AGO_KV_CACHE !== null) return $_AGO_KV_CACHE;
     $ch = curl_init(_kv_base_url() . '/api.php');
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -243,13 +246,13 @@ function _kv_fetch_all() {
     curl_close($ch);
     if ($err || !$res) {
         wh_log('[kv_getAll err] ' . $err);
-        $cache = [];
-        return $cache;
+        $_AGO_KV_CACHE = [];
+        return $_AGO_KV_CACHE;
     }
     $data  = json_decode($res, true);
-    $cache = $data['data'] ?? [];
-    wh_log('[kv_getAll] ' . count($cache) . ' keys loaded');
-    return $cache;
+    $_AGO_KV_CACHE = $data['data'] ?? [];
+    wh_log('[kv_getAll] ' . count($_AGO_KV_CACHE) . ' keys loaded');
+    return $_AGO_KV_CACHE;
 }
 
 function ago_kv_get($key) {
@@ -258,6 +261,8 @@ function ago_kv_get($key) {
 }
 
 function ago_kv_set($key, $value) {
+    global $_AGO_KV_CACHE;
+    if ($_AGO_KV_CACHE !== null) $_AGO_KV_CACHE[$key] = $value;
     $url = _kv_base_url() . '/api.php';
     $ch = curl_init($url);
     curl_setopt_array($ch, [
