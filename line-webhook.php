@@ -49,7 +49,8 @@ if ($LINE_CHANNEL_SECRET) {
 }
 
 // イベント処理
-$events = $data['events'] ?? [];
+$events   = $data['events'] ?? [];
+$deferred = []; // AI処理が必要なイベントをここに積む
 foreach ($events as $event) {
     if ($event['type'] !== 'message') continue;
 
@@ -173,12 +174,10 @@ foreach ($events as $event) {
         continue;
     }
 
-    // APIキーがあればAI処理
+    // APIキーがあればdeferred配列に積む（fastcgi_finish_request後にバックグラウンド処理）
     if ($api_key) {
-        wh_log('[INFO] calling AI for userId=' . $userId . ' text=' . mb_substr($text, 0, 30));
-        require_once __DIR__ . '/line-handler.php';
-        processLineMessage($log_entry, $api_key, $LINE_CHANNEL_TOKEN);
-        wh_log('[DONE] processLineMessage returned');
+        wh_log('[INFO] queued userId=' . $userId . ' text=' . mb_substr($text, 0, 30));
+        $deferred[] = $log_entry;
     } else {
         // APIキー未設定の場合は受信確認だけ返す（トークンがあれば）
         if ($LINE_CHANNEL_TOKEN && $replyToken) {
@@ -187,7 +186,26 @@ foreach ($events as $event) {
     }
 }
 
+// LINE に 200 を即返してコネクションを閉じる
 echo json_encode(['status' => 'ok']);
+if (function_exists('fastcgi_finish_request')) {
+    @ob_end_flush();
+    @flush();
+    fastcgi_finish_request();
+    wh_log('[BGstart] connection closed to LINE via fastcgi_finish_request');
+}
+
+// バックグラウンドでAI処理（LINE接続切断後・タイムアウト延長）
+if (!empty($deferred)) {
+    ignore_user_abort(true);
+    set_time_limit(300);
+    require_once __DIR__ . '/line-handler.php';
+    foreach ($deferred as $entry) {
+        wh_log('[BG] processing userId=' . $entry['userId'] . ' text=' . mb_substr($entry['text'], 0, 30));
+        processLineMessage($entry, $api_key, $LINE_CHANNEL_TOKEN);
+        wh_log('[BG] done userId=' . $entry['userId']);
+    }
+}
 
 // ── LINE返信 ────────────────────────────────────────────────────
 

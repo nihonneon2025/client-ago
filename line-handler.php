@@ -920,7 +920,7 @@ function ai_call($api_key, $system, $messages, $max_tokens = 1500) {
             'anthropic-version: 2023-06-01',
             'Content-Type: application/json',
         ],
-        CURLOPT_TIMEOUT => 30,
+        CURLOPT_TIMEOUT => 90,
     ]);
     $res = curl_exec($ch);
     $err = curl_error($ch);
