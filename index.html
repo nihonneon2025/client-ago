@@ -515,7 +515,6 @@ body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!i
   </div>
   <div class="header-right">
     <button class="theme-btn" id="theme-toggle" onclick="toggleTheme()">🌙</button>
-    <button class="notif-btn" id="notif-btn" onclick="togglePush()" title="プッシュ通知">🔔</button>
     <button class="lang-btn active" id="btn-ja" onclick="setLang('ja')">🇯🇵 日本語</button>
     <button class="lang-btn" id="btn-zh" onclick="setLang('zh')">🇨🇳 中文</button>
     <button class="lang-btn" id="switch-user-btn" onclick="showSwitchUserModal()" title="ユーザー切り替え" style="display:none">👤</button>
@@ -2561,84 +2560,44 @@ async function registerSW() {
   if (!('serviceWorker' in navigator)) return;
   try {
     await navigator.serviceWorker.register('sw.js');
-    updateNotifBtn();
-    // デフォルトON: 無効化フラグがなければ自動登録
     await autoEnablePush();
   } catch(e) { console.log('SW register:', e); }
 }
 
-function updateNotifBtn() {
-  const btn = document.getElementById('notif-btn');
-  if (!btn) return;
-  const disabled = localStorage.getItem('push_disabled') === '1';
-  const perm = Notification.permission;
-  if (perm === 'denied') {
-    btn.textContent = '🔕'; btn.title = 'ブラウザの設定から通知を許可してください';
-  } else if (!disabled && perm === 'granted') {
-    btn.textContent = '🔔'; btn.title = '通知ON（タップで無効化）';
-    btn.classList.add('enabled'); btn.classList.remove('denied');
-  } else {
-    btn.textContent = '🔕'; btn.title = '通知OFF（タップで有効化）';
-    btn.classList.remove('enabled'); btn.classList.remove('denied');
-  }
-}
-
 async function autoEnablePush() {
   if (!('PushManager' in window)) return;
-  if (localStorage.getItem('push_disabled') === '1') return;
   if (Notification.permission === 'denied') return;
   await enablePush(true);
 }
 
-async function togglePush() {
-  const disabled = localStorage.getItem('push_disabled') === '1';
-  if (disabled) {
-    localStorage.removeItem('push_disabled');
-    await enablePush(false);
-  } else {
-    // 無効化: サブスクリプション解除
-    localStorage.setItem('push_disabled', '1');
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        await fetch('subscribe.php', {method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({action:'unsubscribe', endpoint: sub.endpoint})});
-        await sub.unsubscribe();
-      }
-    } catch(e) { console.log('Unsubscribe:', e); }
-    updateNotifBtn();
-    showToast('🔕 プッシュ通知を無効にしました');
-  }
-}
-
 async function enablePush(silent = false) {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    if (!silent) alert('このブラウザはプッシュ通知に対応していません');
-    return;
-  }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
     const perm = await Notification.requestPermission();
-    if (perm !== 'granted') { updateNotifBtn(); return; }
+    if (perm !== 'granted') return;
     const reg = await navigator.serviceWorker.ready;
+    // VAPIDキーが変わった場合は古いサブスクリプションを破棄して再登録
     let sub = await reg.pushManager.getSubscription();
+    const storedKey = localStorage.getItem('push_vapid_key');
+    if (sub && storedKey !== VAPID_PUBLIC_KEY) {
+      await sub.unsubscribe();
+      sub = null;
+    }
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       });
+      localStorage.setItem('push_vapid_key', VAPID_PUBLIC_KEY);
     }
     const currentUser = JSON.parse(localStorage.getItem('ago_current_user') || '{}');
     const userName = currentUser.name || localStorage.getItem('push_user') || 'default';
     localStorage.setItem('push_user', userName);
     await fetch('subscribe.php', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({...sub.toJSON(), action:'subscribe', user_name: userName})});
-    localStorage.removeItem('push_disabled');
-    updateNotifBtn();
     if (!silent) showToast('✅ プッシュ通知を有効にしました');
   } catch(e) {
     console.log('Push setup:', e);
-    if (!silent) showToast('通知の設定に失敗しました: ' + e.message);
   }
 }
 
@@ -9467,13 +9426,8 @@ async function renderLineLogs() {
 
   let logs = [];
   try {
-    const res = await fetch('api.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-AGO-Token': 'system002-od' },
-      body: JSON.stringify({ action: 'kv_get', key: 'ago_line_logs' })
-    });
-    const data = await res.json();
-    if (data.value) logs = JSON.parse(data.value) || [];
+    const raw = await kvGet('ago_line_logs');
+    if (raw) logs = JSON.parse(raw) || [];
   } catch(e) {
     logs = lsLoad(LS_LINE_LOGS) || [];
   }
