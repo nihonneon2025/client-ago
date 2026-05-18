@@ -127,14 +127,23 @@ foreach ($events as $event) {
         wh_log('[NOTIFY] delivered pending result to ' . ($groupId ?? $userId));
     }
 
-    // グループチャットの場合：トリガーワードがなければ無視
+    // グループチャットはURVAN AGO（LINE WORKS）が担当 → AI処理しない
     if ($groupId) {
-        $trigger = '/^(ウルバン|urvan|URVAN|urban|URBAN)[\s、,　。]/ui';
-        if (!preg_match($trigger, $text)) continue;
-        // トリガーワードを除いた本文だけ処理する
-        $text = trim(preg_replace($trigger, '', $text, 1));
-        if (empty($text)) continue;
-        wh_log('[GROUP] trigger matched userId=' . $userId . ' text=' . mb_substr($text, 0, 30));
+        wh_log('[SKIP] group message – handled by URVAN AGO');
+        // ログだけ記録してスキップ
+        $log_entry_skip = [
+            'id'       => date('YmdHis') . '_' . substr($userId, -6),
+            'ts'       => date('Y-m-d H:i:s'),
+            'userId'   => $userId,
+            'user_name'=> '',
+            'groupId'  => $groupId,
+            'group_name' => null,
+            'source'   => 'group',
+            'text'     => $text,
+            'status'   => 'skipped_group',
+        ];
+        ago_log_save($log_entry_skip);
+        continue;
     }
 
     // 許可ユーザーチェック（リストが空=未設定の間は全員受信）

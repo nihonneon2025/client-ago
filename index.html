@@ -9351,11 +9351,13 @@ let lineCurrentGroup = null;
 let lineGroupData    = {};
 
 const LINE_STATUS_LABEL = {
-  received:   { text: '受信済',   color: '#3b82f6' },
-  blocked:    { text: '拒否',     color: '#94a3b8' },
-  processing: { text: 'AI処理中', color: '#f59e0b' },
-  registered: { text: '案件登録済', color: '#06c755' },
-  error:      { text: 'エラー',   color: '#ef4444' }
+  received:      { text: '受信済',        color: '#3b82f6' },
+  blocked:       { text: '拒否',          color: '#94a3b8' },
+  processing:    { text: 'AI処理中',      color: '#f59e0b' },
+  registered:    { text: '案件登録済',    color: '#06c755' },
+  replied:       { text: '返信済',        color: '#10b981' },
+  skipped_group: { text: 'URVAN AGO担当', color: '#8b5cf6' },
+  error:         { text: 'エラー',        color: '#ef4444' }
 };
 
 async function initLineTab() {
