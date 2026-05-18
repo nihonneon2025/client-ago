@@ -362,6 +362,8 @@ SYS;
     }
     unset($action);
 
+    $has_claude_task = !empty(array_filter($to_execute, fn($a) => ($a['type'] ?? '') === 'claude_task'));
+
     foreach ($to_execute as $action) {
         execute_action($action, $userId, $users_map, $ts, $line_token, $kanno_id);
     }
@@ -446,10 +448,12 @@ SYS;
         'ai_reply' => mb_substr($reply_msg, 0, 200)
     ]);
 
-    // ── 11. Web Push（完了通知） ────────────────────────────────────
-    $push_from = $user_name ?? ('ユーザー' . substr($userId, -6));
-    $push_body = "✅ {$push_from}さんの依頼が完了しました\n" . mb_substr($reply_msg, 0, 80);
-    send_web_push($push_body, 'AGO SYSTEM MANAGER');
+    // ── 11. Web Push（完了通知）claude_task はキュー実行側が送るためスキップ ──
+    if (!$has_claude_task) {
+        $push_from = $user_name ?? ('ユーザー' . substr($userId, -6));
+        $push_body = "✅ {$push_from}さんの依頼が完了しました\n" . mb_substr($reply_msg, 0, 80);
+        send_web_push($push_body, 'AGO SYSTEM MANAGER');
+    }
 }
 
 // ── アクション実行 ────────────────────────────────────────────────
