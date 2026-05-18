@@ -56,5 +56,30 @@ curl_close($ch);
     date('Y-m-d H:i:s') . " to=$to code=$code body=" . mb_substr($res ?? '', 0, 300) . "\n",
     FILE_APPEND | LOCK_EX);
 
+// LINE送信と同時にWebプッシュも全端末へ送信（デーモンがsubscribe.phpを呼ばなくてもここで補完）
+$push_ch = curl_init('https://' . $_SERVER['HTTP_HOST'] . '/subscribe.php');
+curl_setopt_array($push_ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST           => true,
+    CURLOPT_POSTFIELDS     => json_encode([
+        'action' => 'send_all',
+        'title'  => 'AGO SYSTEM MANAGER',
+        'body'   => mb_substr($message, 0, 120),
+    ]),
+    CURLOPT_HTTPHEADER     => [
+        'Content-Type: application/json',
+        'X-AGO-Token: system002-od',
+    ],
+    CURLOPT_TIMEOUT        => 15,
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_SSL_VERIFYHOST => false,
+]);
+$push_res  = curl_exec($push_ch);
+$push_code = curl_getinfo($push_ch, CURLINFO_HTTP_CODE);
+curl_close($push_ch);
+@file_put_contents(__DIR__ . '/line_push_debug.log',
+    date('Y-m-d H:i:s') . " webpush code=$push_code res=" . mb_substr($push_res ?? '', 0, 100) . "\n",
+    FILE_APPEND | LOCK_EX);
+
 http_response_code($code);
 echo $res;
