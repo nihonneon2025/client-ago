@@ -59,6 +59,7 @@ if (empty($queue)) {
 // ── 未通知の完了タスクを検索して通知 ─────────────────────────────────
 $updated      = false;
 $notify_count = 0;
+$log_updates  = [];  // log_id => result のマップ
 
 foreach ($queue as &$task) {
     if (($task['status'] ?? '') === 'done' && empty($task['notified_at'])) {
@@ -72,9 +73,33 @@ foreach ($queue as &$task) {
         $task['notified_at'] = date('Y-m-d H:i:s');
         $updated = true;
         $notify_count++;
+
+        // LINEログ更新用にlog_idと結果を記録
+        if (!empty($task['log_id'])) {
+            $log_updates[$task['log_id']] = $task['result'] ?? '作業が完了しました';
+        }
     }
 }
 unset($task);
+
+// ── LINEログを更新 ────────────────────────────────────────────────────
+if (!empty($log_updates)) {
+    $logs = json_decode(($all['data'] ?? [])['ago_line_logs'] ?? '[]', true) ?: [];
+    $log_changed = false;
+    foreach ($logs as &$log) {
+        $lid = $log['id'] ?? '';
+        if (isset($log_updates[$lid])) {
+            $log['ai_reply'] = mb_substr($log_updates[$lid], 0, 200);
+            $log['status']   = 'replied';
+            $log_changed     = true;
+            nc_log('log_updated id=' . $lid);
+        }
+    }
+    unset($log);
+    if ($log_changed) {
+        nc_kv_set('ago_line_logs', $logs);
+    }
+}
 
 if ($updated) {
     nc_kv_set('ago_claude_queue', $queue);
