@@ -139,12 +139,25 @@ foreach ($events as $event) {
     // 許可ユーザーチェック（リストが空=未設定の間は全員受信）
     $allowed = empty($allowed_ids) || in_array($userId, $allowed_ids);
 
+    // ユーザー名・グループ名を解決
+    $users_map_raw  = ago_kv_get('ago_line_users');
+    $users_map_wh   = $users_map_raw ? (json_decode($users_map_raw, true) ?: []) : [];
+    $user_name_wh   = $users_map_wh[$userId] ?? ('スタッフ(' . substr($userId, -6) . ')');
+    $group_name_wh  = null;
+    if ($groupId) {
+        $groups_map_raw = ago_kv_get('ago_line_groups');
+        $groups_map_wh  = $groups_map_raw ? (json_decode($groups_map_raw, true) ?: []) : [];
+        $group_name_wh  = $groups_map_wh[$groupId] ?? ('グループ(' . substr($groupId, -6) . ')');
+    }
+
     // 受信ログに記録
     $log_entry = [
         'id'          => date('YmdHis') . '_' . substr($userId, -6),
         'ts'          => date('Y-m-d H:i:s'),
         'userId'      => $userId,
+        'user_name'   => $user_name_wh,
         'groupId'     => $groupId,
+        'group_name'  => $group_name_wh,
         'source'      => $source,
         'text'        => $text,
         'quoted_text' => $quoted_text,

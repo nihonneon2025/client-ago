@@ -515,7 +515,7 @@ body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!i
   </div>
   <div class="header-right">
     <button class="theme-btn" id="theme-toggle" onclick="toggleTheme()">🌙</button>
-    <button class="notif-btn" id="notif-btn" onclick="enablePush()" title="プッシュ通知を有効にする">🔔</button>
+    <button class="notif-btn" id="notif-btn" onclick="togglePush()" title="プッシュ通知">🔔</button>
     <button class="lang-btn active" id="btn-ja" onclick="setLang('ja')">🇯🇵 日本語</button>
     <button class="lang-btn" id="btn-zh" onclick="setLang('zh')">🇨🇳 中文</button>
     <button class="lang-btn" id="switch-user-btn" onclick="showSwitchUserModal()" title="ユーザー切り替え" style="display:none">👤</button>
@@ -675,46 +675,48 @@ body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!i
 
 <!-- Accounting View -->
 <!-- LINE受信タブ -->
-<div id="line-view" style="display:none;padding:16px;max-width:700px;margin:0 auto">
+<div id="line-view" style="display:none">
+<div style="height:calc(100vh - 120px);display:flex;flex-direction:column;overflow:hidden">
 
-  <!-- セットアップ状況バナー -->
-  <div id="line-setup-banner" style="background:#fff8e1;border:1px solid #ffc107;border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:13px;display:none">
-    <div style="font-weight:700;color:#e65100;margin-bottom:6px">⚠️ セットアップ未完了</div>
-    <div id="line-setup-items" style="color:#555;line-height:1.8"></div>
-  </div>
-
-  <!-- Webhook URL表示 -->
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px">
-    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">LINE WebhookのURL（LINEの設定画面に貼り付け）</div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <code id="webhook-url-text" style="flex:1;background:var(--bg);padding:8px 12px;border-radius:8px;font-size:12px;color:var(--text);word-break:break-all"></code>
-      <button onclick="copyWebhookUrl()" style="background:#06c755;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:12px;cursor:pointer;flex-shrink:0">コピー</button>
+  <!-- ヘッダー -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)">
+    <div style="font-weight:700;font-size:14px">💬 LINEログ</div>
+    <div style="display:flex;gap:6px">
+      <button onclick="renderLineLogs()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--muted);cursor:pointer">更新</button>
+      <button onclick="toggleLineSettings()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--muted);cursor:pointer">⚙️ 設定</button>
     </div>
   </div>
 
-  <!-- 許可ユーザー管理 -->
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px">
-    <div style="font-weight:700;font-size:14px;margin-bottom:10px">👤 送信を許可するユーザー</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">LINEのユーザーID（Uから始まる文字列）を登録してください。未登録の場合は全員受信になります。</div>
-    <div id="line-allowed-list" style="margin-bottom:10px"></div>
-    <div style="display:flex;gap:8px">
-      <input id="line-userid-input" type="text" placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text)">
-      <button onclick="addAllowedUser()" style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer">追加</button>
+  <!-- 設定パネル（折り畳み） -->
+  <div id="line-settings-section" style="display:none;padding:12px 14px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Webhook URL</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px">
+      <code id="webhook-url-text" style="flex:1;background:var(--bg);padding:6px 10px;border-radius:6px;font-size:11px;color:var(--text);word-break:break-all"></code>
+      <button onclick="copyWebhookUrl()" style="background:#06c755;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;flex-shrink:0">コピー</button>
+    </div>
+    <div style="font-weight:600;font-size:13px;margin-bottom:6px">👤 送信許可ユーザー</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">LINEユーザーID（Uから始まる）を登録。未登録=全員受信。</div>
+    <div id="line-allowed-list" style="margin-bottom:8px"></div>
+    <div style="display:flex;gap:6px">
+      <input id="line-userid-input" type="text" placeholder="Uxxxxxxxxxx..." style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--text)">
+      <button onclick="addAllowedUser()" style="background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">追加</button>
     </div>
   </div>
 
-  <!-- 受信ログ -->
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div style="font-weight:700;font-size:14px">📨 受信ログ</div>
-      <button onclick="initLineTab()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--muted);cursor:pointer">更新</button>
+  <!-- 2ペインレイアウト -->
+  <div style="flex:1;display:flex;overflow:hidden">
+    <!-- 左: グループリスト -->
+    <div id="line-group-panel" style="width:150px;min-width:100px;border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0;background:var(--surface)">
+      <div style="padding:12px;text-align:center;color:var(--muted);font-size:12px">読み込み中...</div>
     </div>
-    <div id="line-log-list">
-      <div style="text-align:center;color:var(--muted);font-size:13px;padding:24px 0">受信メッセージはここに表示されます</div>
+    <!-- 右: チャット表示 -->
+    <div id="line-chat-panel" style="flex:1;overflow-y:auto;padding:12px;background:var(--bg)">
+      <div style="text-align:center;color:var(--muted);font-size:13px;padding:40px 0">グループを選択してください</div>
     </div>
   </div>
 
-</div>
+</div><!-- /inner flex wrapper -->
+</div><!-- /line-view -->
 
 <div id="accounting-view" style="display:none">
   <div class="acc-sub-nav">
@@ -2553,51 +2555,90 @@ function escHtml(str) {
 }
 
 // ── PWA / Service Worker / Push通知 ─────────────────────────
+const VAPID_PUBLIC_KEY = 'BMvN8dm_cGjsWBYwWz27srAWMTOgVC3MRmrrZJwgBw3nreWgAqeGwJH8iDTtoPTFc_i0QrOMGL6K8eQRMJ6yUR0';
+
 async function registerSW() {
   if (!('serviceWorker' in navigator)) return;
   try {
     await navigator.serviceWorker.register('sw.js');
     updateNotifBtn();
+    // デフォルトON: 無効化フラグがなければ自動登録
+    await autoEnablePush();
   } catch(e) { console.log('SW register:', e); }
 }
 
 function updateNotifBtn() {
   const btn = document.getElementById('notif-btn');
   if (!btn) return;
+  const disabled = localStorage.getItem('push_disabled') === '1';
   const perm = Notification.permission;
-  if (perm === 'granted') {
-    btn.textContent = '🔔'; btn.classList.add('enabled');
-    btn.title = '通知有効（クリックで再登録）';
-  } else if (perm === 'denied') {
-    btn.textContent = '🔕'; btn.classList.add('denied');
-    btn.title = 'ブラウザの設定から通知を許可してください';
+  if (perm === 'denied') {
+    btn.textContent = '🔕'; btn.title = 'ブラウザの設定から通知を許可してください';
+  } else if (!disabled && perm === 'granted') {
+    btn.textContent = '🔔'; btn.title = '通知ON（タップで無効化）';
+    btn.classList.add('enabled'); btn.classList.remove('denied');
   } else {
-    btn.textContent = '🔔';
-    btn.title = 'クリックしてプッシュ通知を有効にする';
+    btn.textContent = '🔕'; btn.title = '通知OFF（タップで有効化）';
+    btn.classList.remove('enabled'); btn.classList.remove('denied');
   }
 }
 
-async function enablePush() {
+async function autoEnablePush() {
+  if (!('PushManager' in window)) return;
+  if (localStorage.getItem('push_disabled') === '1') return;
+  if (Notification.permission === 'denied') return;
+  await enablePush(true);
+}
+
+async function togglePush() {
+  const disabled = localStorage.getItem('push_disabled') === '1';
+  if (disabled) {
+    localStorage.removeItem('push_disabled');
+    await enablePush(false);
+  } else {
+    // 無効化: サブスクリプション解除
+    localStorage.setItem('push_disabled', '1');
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await fetch('subscribe.php', {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({action:'unsubscribe', endpoint: sub.endpoint})});
+        await sub.unsubscribe();
+      }
+    } catch(e) { console.log('Unsubscribe:', e); }
+    updateNotifBtn();
+    showToast('🔕 プッシュ通知を無効にしました');
+  }
+}
+
+async function enablePush(silent = false) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-    alert('このブラウザはプッシュ通知に対応していません'); return;
+    if (!silent) alert('このブラウザはプッシュ通知に対応していません');
+    return;
   }
   try {
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') { updateNotifBtn(); return; }
     const reg = await navigator.serviceWorker.ready;
-    const existing = await reg.pushManager.getSubscription();
-    if (existing) await existing.unsubscribe();
-    const vapidKey = urlBase64ToUint8Array('BNaL2HSwCwuiSw6wQXMD-mqZrqNoa9eQWAQ7k6_4rIocK64uhBGs4rYI9ZahH1Hk1j1gSExWfJ2FZBlwWpOhLRk');
-    const sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:vapidKey});
-    const userName = localStorage.getItem('push_user') || 'default';
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    const currentUser = JSON.parse(localStorage.getItem('ago_current_user') || '{}');
+    const userName = currentUser.name || localStorage.getItem('push_user') || 'default';
     localStorage.setItem('push_user', userName);
     await fetch('subscribe.php', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({...sub.toJSON(), user_name: userName})});
+      body: JSON.stringify({...sub.toJSON(), action:'subscribe', user_name: userName})});
+    localStorage.removeItem('push_disabled');
     updateNotifBtn();
-    showToast('✅ プッシュ通知を有効にしました（'+userName+'）');
+    if (!silent) showToast('✅ プッシュ通知を有効にしました');
   } catch(e) {
     console.log('Push setup:', e);
-    showToast('通知の設定に失敗しました: '+e.message);
+    if (!silent) showToast('通知の設定に失敗しました: ' + e.message);
   }
 }
 
@@ -9324,6 +9365,8 @@ function confirmCsvImport() {
 
 const LS_LINE_LOGS    = 'ago_line_logs';
 const LS_LINE_ALLOWED = 'ago_line_allowed_users';
+let lineCurrentGroup = null;
+let lineGroupData    = {};
 
 const LINE_STATUS_LABEL = {
   received:   { text: '受信済',   color: '#3b82f6' },
@@ -9334,19 +9377,15 @@ const LINE_STATUS_LABEL = {
 };
 
 async function initLineTab() {
-  // Webhook URL表示
   const urlEl = document.getElementById('webhook-url-text');
   if (urlEl) urlEl.textContent = location.origin + '/line-webhook.php';
-
-  // セットアップ完了済み（api-config.phpでサーバー側設定済み）
-  const banner = document.getElementById('line-setup-banner');
-  if (banner) banner.style.display = 'none';
-
-  // 許可ユーザーリスト描画
   renderAllowedUsers();
-
-  // 受信ログ描画（KVストアから取得）
   await renderLineLogs();
+}
+
+function toggleLineSettings() {
+  const el = document.getElementById('line-settings-section');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
 const KV_API_URL = 'https://system002-od.ordermade-neon.com/api.php';
@@ -9422,11 +9461,10 @@ async function removeAllowedUser(index) {
 }
 
 async function renderLineLogs() {
-  const el = document.getElementById('line-log-list');
-  if (!el) return;
-  el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:16px">読み込み中...</div>';
+  const groupEl = document.getElementById('line-group-panel');
+  const chatEl  = document.getElementById('line-chat-panel');
+  if (groupEl) groupEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px">読み込み中...</div>';
 
-  // サーバーKVストアから取得（api.php）
   let logs = [];
   try {
     const res = await fetch('api.php', {
@@ -9440,27 +9478,104 @@ async function renderLineLogs() {
     logs = lsLoad(LS_LINE_LOGS) || [];
   }
 
-  if (logs.length === 0) {
-    el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:24px 0">受信メッセージはここに表示されます</div>';
+  // グループIDでログを分類
+  lineGroupData = {};
+  for (const log of logs) {
+    const gid = log.groupId || '__direct__';
+    if (!lineGroupData[gid]) {
+      lineGroupData[gid] = {
+        groupId: gid,
+        group_name: log.group_name || (gid === '__direct__' ? '📱 ダイレクト' : 'グループ(' + gid.slice(-6) + ')'),
+        logs: []
+      };
+    }
+    lineGroupData[gid].logs.push(log);
+  }
+
+  renderLineGroups();
+
+  const groups = Object.values(lineGroupData);
+  if (!lineCurrentGroup && groups.length > 0) lineCurrentGroup = groups[0].groupId;
+  if (lineCurrentGroup && lineGroupData[lineCurrentGroup]) {
+    renderLineChat(lineCurrentGroup);
+  } else if (chatEl) {
+    chatEl.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:40px 0">受信メッセージはありません</div>';
+  }
+}
+
+function renderLineGroups() {
+  const el = document.getElementById('line-group-panel');
+  if (!el) return;
+  const groups = Object.values(lineGroupData).sort((a, b) => {
+    const aT = a.logs[0]?.ts || '';
+    const bT = b.logs[0]?.ts || '';
+    return bT.localeCompare(aT);
+  });
+  if (groups.length === 0) {
+    el.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px">ログなし</div>';
+    return;
+  }
+  el.innerHTML = groups.map(g => {
+    const isActive  = g.groupId === lineCurrentGroup;
+    const lastLog   = g.logs[0];
+    const lastTime  = lastLog ? lastLog.ts.slice(5, 16) : '';
+    const lastText  = lastLog ? (lastLog.text || '').slice(0, 18) : '';
+    const hasError  = g.logs.some(l => l.status === 'error');
+    return `
+    <div onclick="lineSelectGroup('${escapeHtml(g.groupId)}')" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);${isActive ? 'background:rgba(59,130,246,0.12);border-left:3px solid #3b82f6;' : ''}transition:background 0.1s">
+      <div style="font-weight:600;font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(g.group_name)}${hasError ? ' ⚠️' : ''}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(lastText)}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:1px">${lastTime}</div>
+    </div>`;
+  }).join('');
+}
+
+function lineSelectGroup(groupId) {
+  lineCurrentGroup = groupId;
+  renderLineGroups();
+  renderLineChat(groupId);
+}
+
+function renderLineChat(groupId) {
+  const el = document.getElementById('line-chat-panel');
+  if (!el) return;
+  const group = lineGroupData[groupId];
+  if (!group) {
+    el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:40px 0">グループが見つかりません</div>';
     return;
   }
 
   const allProjects = lsLoad('ago_projects') || [];
-  el.innerHTML = logs.map(log => {
-    const st     = LINE_STATUS_LABEL[log.status] || { text: log.status, color: '#94a3b8' };
-    const proj   = log.project_id ? allProjects.find(p => p.id == log.project_id) : null;
-    const srcIcon = log.source === 'group' ? '👥' : '👤';
+  // logs は新しい順なので逆転して時系列表示
+  const msgs = [...group.logs].reverse();
+
+  el.innerHTML = `
+    <div style="font-weight:600;font-size:12px;color:var(--muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">${escapeHtml(group.group_name)} — ${msgs.length}件</div>
+    ` + msgs.map(log => {
+    const st       = LINE_STATUS_LABEL[log.status] || { text: log.status, color: '#94a3b8' };
+    const proj     = log.project_id ? allProjects.find(p => p.id == log.project_id) : null;
+    const userName = escapeHtml(log.user_name || ('ユーザー' + (log.userId || '').slice(-6)));
+    const timeStr  = log.ts ? log.ts.slice(5, 16) : '';
     return `
-    <div style="padding:12px 0;border-bottom:1px solid var(--border)">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
-        <div style="font-size:11px;color:var(--muted)">${srcIcon} ${log.ts} <span style="font-family:monospace">${(log.userId||'').slice(-8)}</span></div>
-        <span style="background:${st.color};color:#fff;font-size:10px;padding:2px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0">${st.text}</span>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <span style="font-weight:600">${userName}</span>
+        <span>${timeStr}</span>
+        <span style="background:${st.color};color:#fff;font-size:10px;padding:1px 6px;border-radius:10px">${st.text}</span>
       </div>
-      <div style="font-size:13px;color:var(--text);background:var(--bg);border-radius:8px;padding:8px 12px;margin-bottom:6px;white-space:pre-wrap">${escapeHtml(log.text || '')}</div>
-      ${log.error ? `<div style="font-size:11px;color:#ef4444">⚠️ ${escapeHtml(log.error)}</div>` : ''}
-      ${proj ? `<div style="font-size:12px;color:#06c755;cursor:pointer" onclick="switchTab('projects');setTimeout(()=>renderPipelineDetail(${log.project_id}),100)">✅ 案件登録済：${escapeHtml(proj.name)} → タップして確認・修正</div>` : ''}
+      <div style="background:var(--surface);border-radius:0 10px 10px 10px;padding:8px 12px;display:inline-block;max-width:90%;font-size:13px;color:var(--text);white-space:pre-wrap;word-break:break-word;line-height:1.5">
+        ${log.quoted_text ? `<div style="font-size:11px;color:var(--muted);border-left:3px solid #06c755;padding-left:6px;margin-bottom:6px;white-space:pre-wrap">${escapeHtml((log.quoted_text||'').slice(0,120))}</div>` : ''}${escapeHtml(log.text || '')}
+      </div>
+      ${log.ai_reply ? `
+      <div style="margin-top:6px;text-align:right">
+        <div style="background:#3b82f6;color:#fff;border-radius:10px 0 10px 10px;padding:8px 12px;display:inline-block;max-width:90%;font-size:13px;white-space:pre-wrap;word-break:break-word;line-height:1.5;text-align:left">🤖 ${escapeHtml(log.ai_reply)}</div>
+      </div>` : ''}
+      ${log.error ? `<div style="font-size:11px;color:#ef4444;margin-top:4px">⚠️ ${escapeHtml(log.error)}</div>` : ''}
+      ${proj ? `<div style="font-size:11px;color:#06c755;margin-top:4px;cursor:pointer" onclick="switchTab('projects');setTimeout(()=>renderPipelineDetail(${log.project_id}),100)">✅ 案件: ${escapeHtml(proj.name)}</div>` : ''}
     </div>`;
   }).join('');
+
+  el.scrollTop = el.scrollHeight;
 }
 
 function copyWebhookUrl() {

@@ -20,6 +20,14 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 
     ago_log_update($log_id, ['status' => 'processing']);
 
+    // グループチャットの場合は reply_token で即座に「着手します」を返信し、
+    // 完了後に Web Push で結果を通知する（LINE Push の課金を回避）
+    $is_group_msg = !empty($log_entry['groupId']);
+    if ($is_group_msg && $line_token && $reply_token) {
+        line_reply($line_token, $reply_token, "着手します。\n完了したら管理システムのプッシュ通知でご連絡します📲");
+        $reply_token = null; // reply_token は1回しか使えない
+    }
+
     // ── 1. ユーザー名解決 ───────────────────────────────────────────
     $users_map   = json_decode(ago_kv_get('ago_line_users') ?? '{}', true) ?: [];
     $kanno_id    = defined('KANNO_LINE_ID')   ? KANNO_LINE_ID   : '';
@@ -436,6 +444,11 @@ SYS;
         'status'   => 'replied',
         'ai_reply' => mb_substr($reply_msg, 0, 200)
     ]);
+
+    // ── 11. Web Push（完了通知） ────────────────────────────────────
+    $push_from = $user_name ?? ('ユーザー' . substr($userId, -6));
+    $push_body = "✅ {$push_from}さんの依頼が完了しました\n" . mb_substr($reply_msg, 0, 80);
+    send_web_push($push_body, 'AGO SYSTEM MANAGER');
 }
 
 // ── アクション実行 ────────────────────────────────────────────────
@@ -705,21 +718,20 @@ function execute_action($action, $userId, $users_map, $ts, $line_token = '', $ka
 
                     $executed_nos[] = $pano;
 
-                    // スタッフへ完了通知（依頼者が菅野さん以外の場合）
+                    // スタッフへ完了通知（依頼者が菅野さん以外の場合）→ Web Push
                     $requester_id = $pa['requester_id'] ?? '';
-                    if ($requester_id && $requester_id !== $kanno_id && $line_token) {
-                        line_push_msg($line_token, $requester_id,
-                            "✅ {$pa['label']}\n菅野社長に承認いただきました。作業が完了しました。");
+                    if ($requester_id && $requester_id !== $kanno_id) {
+                        send_web_push("✅ {$pa['label']}\n菅野社長に承認いただきました。作業が完了しました。");
                     }
 
                 } elseif (in_array($pano, $declined_nos)) {
-                    // スタッフへ却下通知（依頼者が菅野さん以外の場合）
+                    // スタッフへ却下通知（依頼者が菅野さん以外の場合）→ Web Push
                     $requester_id = $pa['requester_id'] ?? '';
                     $reason       = $declined_map[$pano] ?? '';
-                    if ($requester_id && $requester_id !== $kanno_id && $line_token) {
+                    if ($requester_id && $requester_id !== $kanno_id) {
                         $msg = "❌ {$pa['label']}\n菅野社長に確認しましたが、今回は見送りとなりました。";
                         if ($reason) $msg .= "\n理由: {$reason}";
-                        line_push_msg($line_token, $requester_id, $msg);
+                        send_web_push($msg);
                     }
                 }
             }
@@ -939,6 +951,25 @@ function ago_project_log($project_id, $agent, $message, $ts) {
         'created_at' => $ts,
     ];
     ago_kv_set('ago_project_logs', json_encode($logs, JSON_UNESCAPED_UNICODE));
+}
+
+function send_web_push($body, $title = 'AGO SYSTEM MANAGER') {
+    $host = 'https://system002-od.ordermade-neon.com';
+    $ch = curl_init($host . '/subscribe.php');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode(['action' => 'send_all', 'title' => $title, 'body' => $body]),
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-AGO-Token: system002-od'],
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+    ]);
+    $res = curl_exec($ch);
+    $err = curl_error($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    wh_log('[send_web_push] code=' . $code . ' err=' . ($err ?: 'none') . ' body=' . mb_substr($body, 0, 50));
 }
 
 function ago_log_update($log_id, $updates) {
