@@ -9449,8 +9449,9 @@ async function renderLineLogs() {
 
   let logs = [];
   try {
-    const raw = await kvGet('ago_line_logs');
-    if (raw) logs = JSON.parse(raw) || [];
+    const fetched = await kvGet('ago_line_logs');
+    if (Array.isArray(fetched)) logs = fetched;
+    else if (fetched) logs = JSON.parse(fetched) || [];
   } catch(e) {
     logs = lsLoad(LS_LINE_LOGS) || [];
   }
