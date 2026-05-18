@@ -970,7 +970,7 @@ function send_web_push($body, $title = 'AGO SYSTEM MANAGER') {
     $err = curl_error($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    wh_log('[send_web_push] code=' . $code . ' err=' . ($err ?: 'none') . ' body=' . mb_substr($body, 0, 50));
+    wh_log('[send_web_push] code=' . $code . ' err=' . ($err ?: 'none') . ' res=' . mb_substr($res ?? '', 0, 100) . ' msg=' . mb_substr($body, 0, 50));
 }
 
 function ago_log_update($log_id, $updates) {
