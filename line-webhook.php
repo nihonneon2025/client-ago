@@ -258,7 +258,8 @@ function ago_kv_get($key) {
 }
 
 function ago_kv_set($key, $value) {
-    $ch = curl_init(_kv_base_url() . '/api.php');
+    $url = _kv_base_url() . '/api.php';
+    $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
@@ -268,8 +269,11 @@ function ago_kv_set($key, $value) {
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
     ]);
-    curl_exec($ch);
+    $res  = curl_exec($ch);
+    $err  = curl_error($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    wh_log('[kv_set] key=' . $key . ' url=' . $url . ' code=' . $code . ' err=' . ($err ?: 'none') . ' res=' . mb_substr($res ?? '', 0, 80));
 }
 
 // LINE Content API からファイルをダウンロードしてサーバーに保存
