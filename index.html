@@ -518,6 +518,7 @@ body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!i
     <button class="lang-btn active" id="btn-ja" onclick="setLang('ja')">🇯🇵 日本語</button>
     <button class="lang-btn" id="btn-zh" onclick="setLang('zh')">🇨🇳 中文</button>
     <button class="lang-btn" id="switch-user-btn" onclick="showSwitchUserModal()" title="ユーザー切り替え" style="display:none">👤</button>
+    <button class="lang-btn" id="push-register-btn" onclick="reRegisterPush()" title="通知を再登録">🔔</button>
   </div>
 </header>
 
@@ -2562,6 +2563,18 @@ async function registerSW() {
     await navigator.serviceWorker.register('sw.js');
     await autoEnablePush();
   } catch(e) { console.log('SW register:', e); }
+}
+
+async function reRegisterPush() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) await sub.unsubscribe();
+    localStorage.removeItem('push_vapid_key');
+    await enablePush(false);
+  } catch(e) {
+    showToast('⚠️ 再登録エラー: ' + e.message);
+  }
 }
 
 async function autoEnablePush() {
