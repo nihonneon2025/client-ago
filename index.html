@@ -2593,11 +2593,19 @@ async function enablePush(silent = false) {
     const currentUser = JSON.parse(localStorage.getItem('ago_current_user') || '{}');
     const userName = currentUser.name || localStorage.getItem('push_user') || 'default';
     localStorage.setItem('push_user', userName);
-    await fetch('subscribe.php', {method:'POST', headers:{'Content-Type':'application/json'},
+    const subResp = await fetch('subscribe.php', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({...sub.toJSON(), action:'subscribe', user_name: userName})});
+    const subJson = await subResp.json().catch(() => null);
+    console.log('[push] subscribe resp:', subResp.status, subJson);
+    if (!subResp.ok || !subJson?.success) {
+      console.error('[push] subscribe FAILED status=' + subResp.status, subJson);
+      if (!silent) showToast('⚠️ 通知登録に失敗しました (status=' + subResp.status + ')');
+      return;
+    }
     if (!silent) showToast('✅ プッシュ通知を有効にしました');
   } catch(e) {
-    console.log('Push setup:', e);
+    console.error('[push] enablePush error:', e);
+    if (!silent) showToast('⚠️ 通知登録エラー: ' + e.message);
   }
 }
 
