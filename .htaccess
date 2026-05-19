@@ -20,6 +20,12 @@ Header always set X-Robots-Tag "noindex, nofollow"
 <Files "manifest.json">
     Require all granted
 </Files>
+<Files "chat-manifest.json">
+    Require all granted
+</Files>
+<Files "agoline-icon.php">
+    Require all granted
+</Files>
 <Files "sw.js">
     Require all granted
 </Files>
