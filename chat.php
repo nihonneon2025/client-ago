@@ -1,7 +1,7 @@
 <?php
 // chat.php — AGOLINE v3（認証なし・チャットルーム一覧→詳細）
 
-function chat_fetch_logs() {
+function chat_fetch_kv() {
     $url = 'https://' . $_SERVER['HTTP_HOST'] . '/api.php';
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -17,11 +17,12 @@ function chat_fetch_logs() {
     curl_close($ch);
     if (!$res) return [];
     $data = json_decode($res, true);
-    $all  = $data['data'] ?? [];
-    return json_decode($all['ago_line_logs'] ?? '[]', true) ?: [];
+    return $data['data'] ?? [];
 }
 
-$all_logs = chat_fetch_logs(); // 新しい順（array_unshift で先頭追加）
+$kv          = chat_fetch_kv();
+$all_logs    = json_decode($kv['ago_line_logs']        ?? '[]', true) ?: []; // 新しい順
+$group_icons = json_decode($kv['ago_line_group_icons'] ?? '{}', true) ?: [];
 $filter   = $_GET['g'] ?? null;
 
 // ── チャットルーム一覧の構築 ──────────────────────────────────────
@@ -134,6 +135,7 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
       overflow: hidden;
     }
     .room-avatar svg { width: 48px; height: 48px; }
+    .room-avatar img { width: 48px; height: 48px; object-fit: cover; border-radius: 50%; }
 
     .room-body { flex: 1; min-width: 0; }
     .room-name {
@@ -272,7 +274,15 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
 <?php endforeach; ?>
 <?php endif; ?>
 </div>
-<script>window.addEventListener('load', () => window.scrollTo(0, document.body.scrollHeight));</script>
+<script>
+  // このルームを既読にする
+  const _gid = <?= json_encode($filter) ?>;
+  const _newestTs = <?= json_encode($detail_logs ? ($detail_logs[count($detail_logs)-1]['ts'] ?? '') : '') ?>;
+  if (_gid && _newestTs) {
+    localStorage.setItem('agoline_read_' + _gid, _newestTs);
+  }
+  window.addEventListener('load', () => window.scrollTo(0, document.body.scrollHeight));
+</script>
 
 <?php else: ?>
 <!-- ════ チャットルーム一覧 ════ -->
@@ -304,8 +314,16 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
     $ts_disp = str_starts_with($ts_raw, $d) ? substr($ts_raw, 11, 5) : substr($ts_raw, 5, 5);
   }
 ?>
-<a class="room-item" href="?g=<?= $gid ?>">
-  <div class="room-avatar"><?= $ago_svg ?></div>
+<a class="room-item" href="?g=<?= $gid ?>"
+   data-gid="<?= htmlspecialchars($room['gid']) ?>"
+   data-last-ts="<?= htmlspecialchars($room['last_ts']) ?>">
+  <div class="room-avatar">
+    <?php if (!empty($group_icons[$room['gid']])): ?>
+      <img src="<?= htmlspecialchars($group_icons[$room['gid']]) ?>" alt="">
+    <?php else: ?>
+      <?= $ago_svg ?>
+    <?php endif; ?>
+  </div>
   <div class="room-body">
     <div class="room-name"><?= $name ?></div>
     <div class="room-preview"><?= $preview ?: '（メッセージなし）' ?></div>
@@ -319,6 +337,29 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
 <?php endif; ?>
 </div>
 <?php endif; ?>
+
+<script>
+<?php if (!$filter): ?>
+// ルーム一覧: localStorage で既読チェック → バッジを非表示に
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.room-item').forEach(function (item) {
+    var gid    = item.dataset.gid;
+    var lastTs = item.dataset.lastTs;
+    var read   = localStorage.getItem('agoline_read_' + gid);
+    var badge  = item.querySelector('.room-badge');
+    if (read && lastTs && lastTs <= read) {
+      badge.style.display = 'none'; // 既読 → バッジ消す
+    }
+    item.addEventListener('click', function (e) {
+      e.preventDefault();
+      // タップ時点で既読フラグを立てる
+      localStorage.setItem('agoline_read_' + gid, lastTs);
+      window.location.href = item.getAttribute('href');
+    });
+  });
+});
+<?php endif; ?>
+</script>
 
 </body>
 </html>

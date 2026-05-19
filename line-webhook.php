@@ -170,6 +170,40 @@ foreach ($events as $event) {
         $groups_map_raw = ago_kv_get('ago_line_groups');
         $groups_map_wh  = $groups_map_raw ? (json_decode($groups_map_raw, true) ?: []) : [];
         $group_name_wh  = $groups_map_wh[$groupId] ?? ('グループ(' . substr($groupId, -6) . ')');
+
+        // グループアイコン・正確な名前をLINE APIから取得してKVキャッシュ（未取得の場合のみ）
+        if ($LINE_CHANNEL_TOKEN) {
+            $icons_raw = ago_kv_get('ago_line_group_icons');
+            $icons_map = $icons_raw ? (json_decode($icons_raw, true) ?: []) : [];
+            if (empty($icons_map[$groupId])) {
+                $gch = curl_init('https://api.line.me/v2/bot/group/' . $groupId . '/summary');
+                curl_setopt_array($gch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $LINE_CHANNEL_TOKEN],
+                    CURLOPT_TIMEOUT        => 5,
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_SSL_VERIFYHOST => false,
+                ]);
+                $gres  = curl_exec($gch);
+                $gcode = curl_getinfo($gch, CURLINFO_HTTP_CODE);
+                curl_close($gch);
+                wh_log('[GROUP_META] code=' . $gcode . ' groupId=' . $groupId);
+                if ($gcode === 200 && $gres) {
+                    $gsummary = json_decode($gres, true);
+                    // アイコンURLを保存
+                    if (!empty($gsummary['pictureUrl'])) {
+                        $icons_map[$groupId] = $gsummary['pictureUrl'];
+                        ago_kv_set('ago_line_group_icons', json_encode($icons_map, JSON_UNESCAPED_UNICODE));
+                    }
+                    // グループ名も正確な名前で上書き
+                    if (!empty($gsummary['groupName'])) {
+                        $groups_map_wh[$groupId] = $gsummary['groupName'];
+                        ago_kv_set('ago_line_groups', json_encode($groups_map_wh, JSON_UNESCAPED_UNICODE));
+                        $group_name_wh = $gsummary['groupName'];
+                    }
+                }
+            }
+        }
     }
 
     // 受信ログに記録
