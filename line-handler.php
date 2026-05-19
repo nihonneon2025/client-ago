@@ -364,6 +364,7 @@ SYS;
     // ── 6. Claude API呼び出し ───────────────────────────────────────
     $messages   = array_values($conv_hist);
     $messages[] = ['role' => 'user', 'content' => $text];
+    wh_log('[AI_CALL] msgs=' . count($messages) . ' sys_len=' . strlen($system) . ' text_len=' . strlen($text));
 
     $raw = ai_call($api_key, $system, $messages, 1500);
 
@@ -983,11 +984,15 @@ function ai_call($api_key, $system, $messages, $max_tokens = 1500) {
         ],
         CURLOPT_TIMEOUT => 90,
     ]);
-    $res = curl_exec($ch);
-    $err = curl_error($ch);
+    $res  = curl_exec($ch);
+    $err  = curl_error($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    if ($err) return null;
+    if ($err) { wh_log('[AI_CURL_ERR] ' . $err); return null; }
     $data = json_decode($res, true);
+    if (!isset($data['content'][0]['text'])) {
+        wh_log('[AI_API_ERR] code=' . $code . ' ' . mb_substr($res ?? '', 0, 300));
+    }
     return $data['content'][0]['text'] ?? null;
 }
 
