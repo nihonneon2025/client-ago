@@ -3,7 +3,7 @@
  * オフライン対応とキャッシュ管理
  */
 
-const CACHE_NAME = 'ago-system-v4';
+const CACHE_NAME = 'ago-system-v5';
 const STATIC_ASSETS = [
   'config.js',
   'manifest.json',
@@ -30,6 +30,12 @@ self.addEventListener('activate', (event) => {
 // リクエスト処理
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
+
+  // PHPページ（動的）→ 常にネットワークから取得（キャッシュしない）
+  if (url.pathname.endsWith('chat.php') || url.pathname.endsWith('agoline-icon.php')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
 
   // APIリクエスト → ネットワークファースト
   if (url.pathname.endsWith('api.php') || url.pathname.endsWith('subscribe.php')) {
