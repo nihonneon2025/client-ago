@@ -448,6 +448,19 @@ document.addEventListener('DOMContentLoaded', function () {
     unread > 0 ? navigator.setAppBadge(unread) : navigator.clearAppBadge();
   }
 });
+
+// SWからプッシュ到着通知を受けたらページをリロードして最新表示
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'new-line-message') {
+      // チャット個別ページ（グループ指定あり）なら自動リロードしない
+      // ルーム一覧ページのみリロード
+      if (!location.search.includes('g=')) {
+        location.reload();
+      }
+    }
+  });
+}
 <?php endif; ?>
 </script>
 

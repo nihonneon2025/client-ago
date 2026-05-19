@@ -9372,6 +9372,13 @@ async function initLineTab() {
   if (!window._lineTabInterval) {
     window._lineTabInterval = setInterval(() => renderLineLogs(), 30000);
   }
+  // SWからプッシュ到着通知を受けたら即時更新
+  if (!window._swMsgListener && 'serviceWorker' in navigator) {
+    window._swMsgListener = true;
+    navigator.serviceWorker.addEventListener('message', e => {
+      if (e.data?.type === 'new-line-message') renderLineLogs();
+    });
+  }
 }
 
 function toggleLineSettings() {

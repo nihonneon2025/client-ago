@@ -92,6 +92,10 @@ self.addEventListener('push', (event) => {
         renotify: true,
       }),
       self.navigator?.setAppBadge?.(badgeCount) ?? Promise.resolve(),
+      // 開いているページに即時更新を通知
+      clients.matchAll({ includeUncontrolled: true, type: 'window' }).then(ws =>
+        ws.forEach(w => w.postMessage({ type: 'new-line-message', badge_count: badgeCount }))
+      ),
     ])
   );
 });
