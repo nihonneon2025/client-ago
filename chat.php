@@ -436,6 +436,13 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
 <?php endif; ?>
 
 <script>
+// サービスワーカー登録（AGOLINE単独インストール時でも動くよう必須）
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(function(e) {
+    console.warn('SW register error:', e);
+  });
+}
+
 <?php if (!$filter): ?>
 document.addEventListener('DOMContentLoaded', function () {
   var unread = 0;
