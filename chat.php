@@ -1,13 +1,12 @@
 <?php
-// chat.php — スマホ用 LINE ログビューア
-// Basic認証で保護・api.php 経由で ago_line_logs を取得して表示
+// chat.php — スマホ用 LINE ログビューア v2
 
-// FastCGI環境対応: PHP_AUTH_USER が取れない場合は Authorization ヘッダーから直接読む
+// FastCGI環境対応
 $_chat_user = $_SERVER['PHP_AUTH_USER'] ?? null;
 $_chat_pass = $_SERVER['PHP_AUTH_PW']   ?? null;
 if ($_chat_user === null) {
-    $raw = $_SERVER['HTTP_AUTHORIZATION']          // .htaccess RewriteRule 経由
-        ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] // リダイレクト経由
+    $raw = $_SERVER['HTTP_AUTHORIZATION']
+        ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
         ?? '';
     if (preg_match('/^Basic\s+(.+)$/i', $raw, $m)) {
         $dec   = base64_decode($m[1]);
@@ -42,8 +41,25 @@ function chat_fetch_logs() {
     return json_decode($all['ago_line_logs'] ?? '[]', true) ?: [];
 }
 
-$logs = chat_fetch_logs();
-// ago_log_save は array_unshift で先頭に追加 → $logs[0] が最新
+$all_logs = chat_fetch_logs();
+
+// グループ一覧を抽出（表示名 → groupId のマップ）
+$groups = []; // groupId => group_name
+foreach ($all_logs as $l) {
+    $gid = $l['groupId'] ?? null;
+    if ($gid && !isset($groups[$gid])) {
+        $groups[$gid] = $l['group_name'] ?? ('グループ(' . substr($gid, -6) . ')');
+    }
+}
+
+// フィルター適用
+$filter = $_GET['g'] ?? 'all';
+if ($filter !== 'all' && isset($groups[$filter])) {
+    $logs = array_values(array_filter($all_logs, fn($l) => ($l['groupId'] ?? null) === $filter));
+} else {
+    $filter = 'all';
+    $logs   = $all_logs;
+}
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -51,6 +67,7 @@ $logs = chat_fetch_logs();
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AGO チャット</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<?= rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#06C755"/><rect x="6" y="7" width="28" height="19" rx="5" fill="white"/><path d="M10 26 L7 33 L17 28 Z" fill="white"/><text x="20" y="21" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#06C755">AGO</text></svg>') ?>">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -58,87 +75,140 @@ $logs = chat_fetch_logs();
       background: #e8f5e9;
       min-height: 100vh;
     }
+
+    /* ── ヘッダー ── */
     #header {
-      background: #4caf50;
+      background: #06C755;
       color: white;
-      padding: 12px 16px;
+      padding: 10px 14px 10px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 10px;
       position: sticky;
       top: 0;
       z-index: 100;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
-    #header h1 { font-size: 17px; font-weight: bold; letter-spacing: 0.5px; }
-    #header .meta { font-size: 11px; opacity: 0.85; margin-top: 2px; }
+    #header .logo {
+      width: 34px; height: 34px;
+      flex-shrink: 0;
+    }
+    #header .title-block { flex: 1; }
+    #header h1 { font-size: 16px; font-weight: bold; line-height: 1.2; }
+    #header .meta { font-size: 11px; opacity: 0.8; margin-top: 1px; }
     .refresh-btn {
-      background: rgba(255,255,255,0.25);
-      border: 1px solid rgba(255,255,255,0.5);
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.45);
       color: white;
-      padding: 6px 14px;
+      padding: 6px 13px;
       border-radius: 16px;
       font-size: 13px;
       cursor: pointer;
       white-space: nowrap;
+      flex-shrink: 0;
     }
+
+    /* ── グループタブ ── */
+    #group-tabs {
+      background: #04a244;
+      display: flex;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      gap: 0;
+      scrollbar-width: none;
+    }
+    #group-tabs::-webkit-scrollbar { display: none; }
+    .tab {
+      flex-shrink: 0;
+      padding: 9px 16px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.75);
+      text-decoration: none;
+      white-space: nowrap;
+      border-bottom: 3px solid transparent;
+      transition: color 0.15s;
+    }
+    .tab.active {
+      color: white;
+      border-bottom-color: white;
+      font-weight: bold;
+    }
+
+    /* ── チャットエリア ── */
     #chat-container {
       padding: 12px 10px;
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 18px;
     }
-    .msg-pair { display: flex; flex-direction: column; gap: 6px; }
+
+    /* グループ区切り（全て表示時） */
+    .group-divider {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0 0;
+    }
+    .group-divider .gd-line { flex: 1; height: 1px; background: rgba(0,0,0,0.1); }
+    .group-divider .gd-name {
+      font-size: 11px;
+      color: #555;
+      background: rgba(255,255,255,0.7);
+      padding: 2px 10px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+
+    .msg-pair { display: flex; flex-direction: column; gap: 5px; }
     .msg-ts {
       text-align: center;
       font-size: 11px;
       color: #777;
-      background: rgba(255,255,255,0.6);
-      display: inline-block;
-      margin: 0 auto;
-      padding: 2px 10px;
-      border-radius: 10px;
     }
-    .group-tag {
-      text-align: center;
-      font-size: 11px;
-      color: #555;
-      margin-top: 1px;
-    }
-    /* ユーザー吹き出し（左側） */
-    .user-row { display: flex; align-items: flex-end; gap: 8px; margin-top: 6px; }
+
+    /* ユーザー吹き出し（左） */
+    .user-row { display: flex; align-items: flex-end; gap: 7px; margin-top: 5px; }
     .avatar {
       width: 34px; height: 34px;
       border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 17px;
       flex-shrink: 0;
       box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+      overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
     }
-    .avatar.user { background: #b0bec5; }
-    .avatar.ai   { background: #43a047; color: white; }
+    .avatar.user { background: #b0bec5; font-size: 17px; }
+    .avatar.ai   { background: transparent; }
+    .avatar.ai svg { width: 34px; height: 34px; }
     .user-info { display: flex; flex-direction: column; gap: 2px; }
-    .sender-name { font-size: 11px; color: #555; margin-left: 2px; }
+    .sender-name { font-size: 11px; color: #555; padding-left: 2px; }
+
     .bubble {
-      max-width: 75vw;
+      max-width: 72vw;
       padding: 9px 13px;
       font-size: 14px;
       line-height: 1.55;
       white-space: pre-wrap;
       word-break: break-word;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     .bubble.user {
       background: white;
       border-radius: 4px 16px 16px 16px;
     }
-    /* AI吹き出し（右側） */
-    .ai-row { display: flex; align-items: flex-end; gap: 8px; flex-direction: row-reverse; margin-top: 4px; }
+
+    /* AI吹き出し（右） */
+    .ai-row {
+      display: flex; align-items: flex-end; gap: 7px;
+      flex-direction: row-reverse;
+      margin-top: 3px;
+    }
     .ai-info { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+    .sender-name.right { padding-right: 2px; padding-left: 0; }
     .bubble.ai {
       background: #b2dfdb;
       border-radius: 16px 4px 16px 16px;
     }
+
     /* ステータスバッジ */
     .status-wrap { display: flex; justify-content: flex-end; margin-right: 42px; }
     .status-badge {
@@ -148,10 +218,10 @@ $logs = chat_fetch_logs();
       display: inline-block;
       margin-top: 2px;
     }
-    .processing { background: #fff9c4; color: #f9a825; }
-    .received   { background: #e3f2fd; color: #1565c0; }
+    .processing  { background: #fff9c4; color: #f57f17; }
+    .received    { background: #e3f2fd; color: #1565c0; }
     .error-badge { background: #ffebee; color: #c62828; }
-    /* 空状態 */
+
     .no-logs {
       text-align: center;
       color: #888;
@@ -161,34 +231,60 @@ $logs = chat_fetch_logs();
   </style>
 </head>
 <body>
+
+<!-- ヘッダー -->
 <div id="header">
-  <div>
-    <h1>💬 AGO チャット</h1>
-    <div class="meta"><?= count($logs) ?> 件 ／ <?= date('H:i') ?> 現在</div>
+  <svg class="logo" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+    <rect width="40" height="40" rx="10" fill="white"/>
+    <rect x="5" y="6" width="30" height="20" rx="6" fill="#06C755"/>
+    <path d="M9 26 L6 34 L18 29 Z" fill="#06C755"/>
+    <text x="20" y="21" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="900" fill="white" letter-spacing="0.5">AGO</text>
+  </svg>
+  <div class="title-block">
+    <h1>AGO チャット</h1>
+    <div class="meta"><?= count($logs) ?> 件表示 ／ <?= date('H:i') ?></div>
   </div>
   <button class="refresh-btn" onclick="location.reload()">↺ 更新</button>
 </div>
 
+<!-- グループタブ -->
+<div id="group-tabs">
+  <a class="tab <?= $filter === 'all' ? 'active' : '' ?>" href="?g=all">すべて</a>
+  <?php foreach ($groups as $gid => $gname): ?>
+  <a class="tab <?= $filter === $gid ? 'active' : '' ?>"
+     href="?g=<?= rawurlencode($gid) ?>">
+    <?= htmlspecialchars($gname) ?>
+  </a>
+  <?php endforeach; ?>
+</div>
+
+<!-- チャット本体 -->
 <div id="chat-container">
 <?php if (empty($logs)): ?>
   <div class="no-logs">メッセージがありません</div>
 <?php else: ?>
-<?php foreach ($logs as $log): ?>
+<?php $prev_gid = null; foreach ($logs as $log): ?>
 <?php
   $ts         = htmlspecialchars($log['ts']         ?? '');
   $user_name  = htmlspecialchars($log['user_name']  ?? 'ユーザー');
   $text       = htmlspecialchars($log['text']       ?? '');
   $ai_reply   = htmlspecialchars($log['ai_reply']   ?? '');
   $status     = $log['status'] ?? '';
+  $cur_gid    = $log['groupId'] ?? null;
   $group_name = !empty($log['group_name']) ? htmlspecialchars($log['group_name']) : null;
 ?>
+<?php if ($filter === 'all' && $group_name && $cur_gid !== $prev_gid): ?>
+<div class="group-divider">
+  <div class="gd-line"></div>
+  <div class="gd-name">📢 <?= $group_name ?></div>
+  <div class="gd-line"></div>
+</div>
+<?php $prev_gid = $cur_gid; endif; ?>
+
 <div class="msg-pair">
   <div class="msg-ts"><?= $ts ?></div>
-  <?php if ($group_name): ?>
-    <div class="group-tag">📢 <?= $group_name ?></div>
-  <?php endif; ?>
 
-  <!-- ユーザーメッセージ（左） -->
+  <!-- ユーザー（左） -->
   <div class="user-row">
     <div class="avatar user">👤</div>
     <div class="user-info">
@@ -197,12 +293,19 @@ $logs = chat_fetch_logs();
     </div>
   </div>
 
-  <!-- AI返信（右） or ステータス -->
+  <!-- AI（右） or ステータス -->
   <?php if ($ai_reply): ?>
   <div class="ai-row">
-    <div class="avatar ai">🤖</div>
+    <div class="avatar ai">
+      <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+        <rect width="40" height="40" rx="10" fill="#06C755"/>
+        <rect x="5" y="6" width="30" height="20" rx="6" fill="white"/>
+        <path d="M9 26 L6 34 L18 29 Z" fill="white"/>
+        <text x="20" y="21" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="900" fill="#06C755" letter-spacing="0.5">AGO</text>
+      </svg>
+    </div>
     <div class="ai-info">
-      <span class="sender-name" style="margin-right:2px">AI URVAN</span>
+      <span class="sender-name right">AI URVAN</span>
       <div class="bubble ai"><?= $ai_reply ?></div>
     </div>
   </div>
