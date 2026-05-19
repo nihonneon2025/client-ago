@@ -41,7 +41,7 @@ function chat_fetch_logs() {
     return json_decode($all['ago_line_logs'] ?? '[]', true) ?: [];
 }
 
-$all_logs = chat_fetch_logs();
+$all_logs = array_reverse(chat_fetch_logs()); // 古い順（下が最新）
 
 // グループ一覧を抽出（表示名 → groupId のマップ）
 $groups = []; // groupId => group_name
@@ -327,5 +327,11 @@ if ($filter !== 'all' && isset($groups[$filter])) {
 <?php endif; ?>
 </div>
 
+<script>
+  // 読み込み完了後に一番下へスクロール
+  window.addEventListener('load', () => {
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+</script>
 </body>
 </html>
