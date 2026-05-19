@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0f172a">
-<title>AGO SYSTEM MANAGER | デモ版</title>
+<title>業務管理システム | デモ版</title>
 <script>
 /** config.js インライン埋め込み（デモ用・スマホ対応） */
 const APP_CONFIG = {
-  companyName: '株式会社AGOグループ',
-  appName: 'AGO SYSTEM MANAGER',
-  shortName: 'AGO',
+  companyName: '株式会社サンプル工務店',
+  appName: '業務管理システム',
+  shortName: 'BMS',
   theme: {
     bg:'#0f172a',surface:'#1e293b',card:'#263147',border:'#334155',
     primary:'#6366f1',accent:'#818cf8',text:'#f1f5f9',muted:'#94a3b8',
@@ -18,13 +18,13 @@ const APP_CONFIG = {
     orange:'#f97316',red:'#ef4444',
   },
   users: {
-    kanno:{name:'菅野',role:'master'},
+    kanno:{name:'代表',role:'master'},
     office01:{name:'事務01',role:'office'},office02:{name:'事務02',role:'office'},office03:{name:'事務03',role:'office'},
     staff01:{name:'スタッフ01',role:'field'},staff02:{name:'スタッフ02',role:'field'},staff03:{name:'スタッフ03',role:'field'},
     staff04:{name:'スタッフ04',role:'field'},staff05:{name:'スタッフ05',role:'field'},staff06:{name:'スタッフ06',role:'field'},
     staff07:{name:'スタッフ07',role:'field'},staff08:{name:'スタッフ08',role:'field'},staff09:{name:'スタッフ09',role:'field'},
     staff10:{name:'スタッフ10',role:'field'},
-    china01:{name:'中国01',role:'china'},china02:{name:'中国02',role:'china'},
+    china01:{name:'仕入先01',role:'china'},china02:{name:'仕入先02',role:'china'},
   },
   masterPin: 'kanno0',
   rolePermissions: {
@@ -420,7 +420,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:8
 <!-- Header -->
 <header>
   <div class="logo" id="logo-tap">
-    <span style="font-weight:800;font-size:20px;color:var(--primary)">AGO</span>
+    <span style="font-weight:800;font-size:20px;color:var(--primary)">BMS</span>
     <span id="app-title">SYSTEM MANAGER</span>
     <span class="master-badge" id="master-badge">MASTER</span>
   </div>
@@ -1059,7 +1059,7 @@ const STATUSES = {
 };
 
 const USERS = {
-  kanno: '菅野', staff01: 'スタッフ01', staff02: 'スタッフ02', staff03: 'スタッフ03', staff04: 'スタッフ04', staff05: 'スタッフ05', staff06: 'スタッフ06', staff07: 'スタッフ07', staff08: 'スタッフ08', staff09: 'スタッフ09', staff10: 'スタッフ10', office01: '事務01', office02: '事務02', office03: '事務03', china01: '中国01', china02: '中国02'
+  kanno: '代表', staff01: 'スタッフ01', staff02: 'スタッフ02', staff03: 'スタッフ03', staff04: 'スタッフ04', staff05: 'スタッフ05', staff06: 'スタッフ06', staff07: 'スタッフ07', staff08: 'スタッフ08', staff09: 'スタッフ09', staff10: 'スタッフ10', office01: '事務01', office02: '事務02', office03: '事務03', china01: '中国01', china02: '中国02'
 };
 
 // ── 状態変数 ─────────────────────────────────────────────────
@@ -1239,11 +1239,11 @@ function initDemoData() {
   const threeDays = formatDate(new Date(now.getTime()+259200000));
 
   demoSave('orders', [
-    {id:1,order_code:'AGO-20260415-001',source:'material',product:'LED蛍光灯 40W×20本',qty:20,amount:48000,buyer_name:'資材センター',buyer_email:'',buyer_note:'急ぎ希望',status:'in_transit',created_at:twoDaysAgo+' 09:30:00',updated_at:yesterday+' 14:00:00'},
-    {id:2,order_code:'AGO-20260415-002',source:'material',product:'チャンネル文字 ステンレス 5文字',qty:1,amount:125000,buyer_name:'サイン工房',buyer_email:'',buyer_note:'',status:'factory_confirmed',created_at:twoDaysAgo+' 11:00:00',updated_at:yesterday+' 10:00:00'},
-    {id:3,order_code:'AGO-20260416-001',source:'material',product:'LEDネオンサイン カスタム',qty:2,amount:85000,buyer_name:'LED卸売センター',buyer_email:'',buyer_note:'デザイン確認済み',status:'ordered_china',created_at:yesterday+' 08:45:00',updated_at:yesterday+' 15:30:00'},
-    {id:4,order_code:'AGO-20260416-002',source:'material',product:'看板用アルミフレーム 1200mm×3',qty:3,amount:36000,buyer_name:'金属加工○○',buyer_email:'',buyer_note:'',status:'received',created_at:yesterday+' 16:00:00',updated_at:yesterday+' 16:00:00'},
-    {id:5,order_code:'AGO-20260416-003',source:'material',product:'LED投光器 100W 防水×5',qty:5,amount:45000,buyer_name:'電材プロ',buyer_email:'',buyer_note:'',status:'delivered',created_at:twoDaysAgo+' 10:00:00',updated_at:today+' 09:00:00'},
+    {id:1,order_code:'SMP-20260415-001',source:'material',product:'LED蛍光灯 40W×20本',qty:20,amount:48000,buyer_name:'資材センター',buyer_email:'',buyer_note:'急ぎ希望',status:'in_transit',created_at:twoDaysAgo+' 09:30:00',updated_at:yesterday+' 14:00:00'},
+    {id:2,order_code:'SMP-20260415-002',source:'material',product:'チャンネル文字 ステンレス 5文字',qty:1,amount:125000,buyer_name:'サイン工房',buyer_email:'',buyer_note:'',status:'factory_confirmed',created_at:twoDaysAgo+' 11:00:00',updated_at:yesterday+' 10:00:00'},
+    {id:3,order_code:'SMP-20260416-001',source:'material',product:'LEDネオンサイン カスタム',qty:2,amount:85000,buyer_name:'LED卸売センター',buyer_email:'',buyer_note:'デザイン確認済み',status:'ordered_china',created_at:yesterday+' 08:45:00',updated_at:yesterday+' 15:30:00'},
+    {id:4,order_code:'SMP-20260416-002',source:'material',product:'看板用アルミフレーム 1200mm×3',qty:3,amount:36000,buyer_name:'金属加工○○',buyer_email:'',buyer_note:'',status:'received',created_at:yesterday+' 16:00:00',updated_at:yesterday+' 16:00:00'},
+    {id:5,order_code:'SMP-20260416-003',source:'material',product:'LED投光器 100W 防水×5',qty:5,amount:45000,buyer_name:'電材プロ',buyer_email:'',buyer_note:'',status:'delivered',created_at:twoDaysAgo+' 10:00:00',updated_at:today+' 09:00:00'},
   ]);
   demoSave('status_log', [
     {id:1,order_id:1,status:'received',updated_by:'office01',note:'',created_at:twoDaysAgo+' 09:30:00'},
@@ -1306,9 +1306,9 @@ function initDemoData() {
     {id:4,project_id:2,user_id:'office01',body:'カフェオーナーから：営業中の騒音は最小限にとのこと。',photo_path:'',created_at:today+' 08:00:00'},
   ]);
   demoSave('invoices', [
-    {id:1,doc_type:'invoice',doc_number:'AGO-INV-20260414-001',project_id:4,client_name:'横浜ロジ',subject:'横浜倉庫LED照明改修工事',amount:580000,tax:58000,total:638000,issue_date:yesterday,due_date:threeDays,status:'sent',notes:'',created_by:'office01',created_at:yesterday+' 17:00:00',updated_at:yesterday+' 17:00:00',items:[{description:'LED照明器具取付（40台）',qty:40,unit_price:8000,amount:320000},{description:'配線工事一式',qty:1,unit_price:180000,amount:180000},{description:'撤去・処分費',qty:1,unit_price:80000,amount:80000}]},
-    {id:2,doc_type:'invoice',doc_number:'AGO-INV-20260416-001',project_id:1,client_name:'新宿ビルオーナー',subject:'新宿ビルLED看板工事',amount:950000,tax:95000,total:1045000,issue_date:today,due_date:'',status:'draft',notes:'工事完了後に発行予定',created_by:'office01',created_at:today+' 10:00:00',updated_at:today+' 10:00:00',items:[{description:'LED看板製作・取付',qty:1,unit_price:750000,amount:750000},{description:'既存看板撤去・処分',qty:1,unit_price:200000,amount:200000}]},
-    {id:3,doc_type:'purchase_order',doc_number:'AGO-PO-20260415-001',project_id:2,client_name:'LED卸売センター',subject:'渋谷カフェ用LED照明部材',amount:120000,tax:12000,total:132000,issue_date:yesterday,due_date:'',status:'sent',notes:'',created_by:'office01',created_at:yesterday+' 11:00:00',updated_at:yesterday+' 11:00:00',items:[{description:'ダウンライトLED 60W相当',qty:20,unit_price:3500,amount:70000},{description:'間接照明用LEDテープ 5m',qty:10,unit_price:5000,amount:50000}]},
+    {id:1,doc_type:'invoice',doc_number:'SMP-INV-20260414-001',project_id:4,client_name:'横浜ロジ',subject:'横浜倉庫LED照明改修工事',amount:580000,tax:58000,total:638000,issue_date:yesterday,due_date:threeDays,status:'sent',notes:'',created_by:'office01',created_at:yesterday+' 17:00:00',updated_at:yesterday+' 17:00:00',items:[{description:'LED照明器具取付（40台）',qty:40,unit_price:8000,amount:320000},{description:'配線工事一式',qty:1,unit_price:180000,amount:180000},{description:'撤去・処分費',qty:1,unit_price:80000,amount:80000}]},
+    {id:2,doc_type:'invoice',doc_number:'SMP-INV-20260416-001',project_id:1,client_name:'新宿ビルオーナー',subject:'新宿ビルLED看板工事',amount:950000,tax:95000,total:1045000,issue_date:today,due_date:'',status:'draft',notes:'工事完了後に発行予定',created_by:'office01',created_at:today+' 10:00:00',updated_at:today+' 10:00:00',items:[{description:'LED看板製作・取付',qty:1,unit_price:750000,amount:750000},{description:'既存看板撤去・処分',qty:1,unit_price:200000,amount:200000}]},
+    {id:3,doc_type:'purchase_order',doc_number:'SMP-PO-20260415-001',project_id:2,client_name:'LED卸売センター',subject:'渋谷カフェ用LED照明部材',amount:120000,tax:12000,total:132000,issue_date:yesterday,due_date:'',status:'sent',notes:'',created_by:'office01',created_at:yesterday+' 11:00:00',updated_at:yesterday+' 11:00:00',items:[{description:'ダウンライトLED 60W相当',qty:20,unit_price:3500,amount:70000},{description:'間接照明用LEDテープ 5m',qty:10,unit_price:5000,amount:50000}]},
   ]);
   demoSave('expenses', [
     {id:1,project_id:1,category:'材料費',description:'看板取付用ボルト・ナットセット',amount:8500,expense_date:yesterday,paid_by:'staff01',notes:'',created_by:'staff01',created_at:yesterday+' 12:00:00'},
@@ -1330,7 +1330,7 @@ async function apiFetch(url, options={}) {
   switch(action) {
     case 'list': return {success:true, orders:demoDB('orders',[])};
     case 'get': { const id=parseInt(params.get('id')); const o=demoDB('orders',[]).find(x=>x.id===id); return o?{success:true,order:o,logs:demoDB('status_log',[]).filter(l=>l.order_id===id)}:{success:false}; }
-    case 'create': { const os=demoDB('orders',[]); const seq=os.length+1; const no={id:seq,order_code:`AGO-${todayStr.replace(/-/g,'')}-${String(seq).padStart(3,'0')}`,source:'material',product:body.product,qty:body.qty||1,amount:body.amount||0,buyer_name:body.buyer_name||'',buyer_email:body.buyer_email||'',buyer_note:body.buyer_note||'',status:'received',created_at:nowStr,updated_at:nowStr}; os.push(no); demoSave('orders',os); const ls=demoDB('status_log',[]); ls.push({id:ls.length+1,order_id:no.id,status:'received',updated_by:body.updated_by||'',note:'',created_at:nowStr}); demoSave('status_log',ls); return {success:true,id:no.id,order_code:no.order_code}; }
+    case 'create': { const os=demoDB('orders',[]); const seq=os.length+1; const no={id:seq,order_code:`SMP-${todayStr.replace(/-/g,'')}-${String(seq).padStart(3,'0')}`,source:'material',product:body.product,qty:body.qty||1,amount:body.amount||0,buyer_name:body.buyer_name||'',buyer_email:body.buyer_email||'',buyer_note:body.buyer_note||'',status:'received',created_at:nowStr,updated_at:nowStr}; os.push(no); demoSave('orders',os); const ls=demoDB('status_log',[]); ls.push({id:ls.length+1,order_id:no.id,status:'received',updated_by:body.updated_by||'',note:'',created_at:nowStr}); demoSave('status_log',ls); return {success:true,id:no.id,order_code:no.order_code}; }
     case 'update_status': { const os=demoDB('orders',[]); const i=os.findIndex(o=>o.id===body.id); if(i<0)return{success:false}; os[i].status=body.status; os[i].updated_at=nowStr; demoSave('orders',os); const ls=demoDB('status_log',[]); ls.push({id:ls.length+1,order_id:body.id,status:body.status,updated_by:body.updated_by||'',note:body.note||'',created_at:nowStr}); demoSave('status_log',ls); return {success:true}; }
     case 'add_memo': { const ls=demoDB('status_log',[]); ls.push({id:ls.length+1,order_id:body.id,status:'memo',updated_by:body.updated_by||'',note:body.note||'',created_at:nowStr}); demoSave('status_log',ls); return {success:true}; }
     case 'delete': { const did=parseInt(params.get('id'))||body.id; demoSave('orders',demoDB('orders',[]).filter(o=>o.id!==did)); return {success:true}; }
@@ -1358,7 +1358,7 @@ async function apiFetch(url, options={}) {
     case 'site_note_create': { const ns=demoDB('site_notes',[]); ns.push({id:ns.length+1,project_id:parseInt(body.project_id),user_id:body.user_id||'',body:body.body,photo_path:'',created_at:nowStr}); demoSave('site_notes',ns); return {success:true}; }
     case 'invoices_list': { const dt=params.get('doc_type'); let its=demoDB('invoices',[]); if(dt)its=its.filter(i=>i.doc_type===dt); return {success:true,invoices:its.sort((a,b)=>b.created_at.localeCompare(a.created_at))}; }
     case 'invoice_get': { return {success:true,invoice:demoDB('invoices',[]).find(i=>i.id===parseInt(params.get('id')))}; }
-    case 'invoice_create': { const invs=demoDB('invoices',[]); const pf=body.doc_type==='purchase_order'?'PO':'INV'; const sq=invs.length+1; invs.push({id:sq,doc_number:`AGO-${pf}-${todayStr.replace(/-/g,'')}-${String(sq).padStart(3,'0')}`,...body,total:(body.amount||0)+(body.tax||0),created_at:nowStr,updated_at:nowStr}); demoSave('invoices',invs); return {success:true}; }
+    case 'invoice_create': { const invs=demoDB('invoices',[]); const pf=body.doc_type==='purchase_order'?'PO':'INV'; const sq=invs.length+1; invs.push({id:sq,doc_number:`SMP-${pf}-${todayStr.replace(/-/g,'')}-${String(sq).padStart(3,'0')}`,...body,total:(body.amount||0)+(body.tax||0),created_at:nowStr,updated_at:nowStr}); demoSave('invoices',invs); return {success:true}; }
     case 'invoice_update': { const invs=demoDB('invoices',[]); const ii=invs.findIndex(i=>i.id===body.id); if(ii>=0){Object.assign(invs[ii],body,{total:(body.amount||0)+(body.tax||0),updated_at:nowStr});demoSave('invoices',invs);} return {success:true}; }
     case 'expenses_list': { const mo=params.get('month')||''; let ex=demoDB('expenses',[]); if(mo)ex=ex.filter(e=>e.expense_date.startsWith(mo)); return {success:true,expenses:ex.sort((a,b)=>b.expense_date.localeCompare(a.expense_date))}; }
     case 'expense_create': { const ex=demoDB('expenses',[]); ex.push({id:ex.length+1,...body,created_at:nowStr}); demoSave('expenses',ex); return {success:true}; }

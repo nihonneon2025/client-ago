@@ -30,11 +30,11 @@ function nc_kv_set($key, $value) {
     return json_decode($res, true);
 }
 
-function nc_webpush($title, $body) {
+function nc_webpush($title, $body, $url = '/chat.php', $badge_count = 1) {
     $ch = curl_init(BASE_URL . '/subscribe.php');
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS     => json_encode(['action' => 'send_all', 'title' => $title, 'body' => $body]),
+        CURLOPT_POSTFIELDS     => json_encode(['action' => 'send_all', 'title' => $title, 'body' => $body, 'url' => $url, 'badge_count' => (int)$badge_count]),
         CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-AGO-Token: ' . API_TOKEN],
         CURLOPT_TIMEOUT        => 15, CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => false,
     ]);
@@ -67,7 +67,7 @@ foreach ($queue as &$task) {
         $result = mb_substr($task['result'] ?? '作業が完了しました', 0, 100);
         $body   = "✅ {$name}さんの依頼が完了しました\n{$result}";
 
-        $push = nc_webpush('AGO SYSTEM MANAGER', $body);
+        $push = nc_webpush('AGO SYSTEM MANAGER', $body, '/chat.php', 1);
         nc_log('task=' . ($task['id'] ?? '?') . ' sent=' . ($push['sent'] ?? 0) . ' failed=' . ($push['failed'] ?? 0));
 
         $task['notified_at'] = date('Y-m-d H:i:s');
