@@ -706,7 +706,7 @@ body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!i
   <!-- 2ペインレイアウト -->
   <div style="flex:1;display:flex;overflow:hidden">
     <!-- 左: グループリスト -->
-    <div id="line-group-panel" style="width:150px;min-width:100px;border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0;background:var(--surface)">
+    <div id="line-group-panel" style="width:220px;min-width:160px;border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0;background:var(--surface)">
       <div style="padding:12px;text-align:center;color:var(--muted);font-size:12px">読み込み中...</div>
     </div>
     <!-- 右: チャット表示 -->
@@ -9349,6 +9349,8 @@ const LS_LINE_LOGS    = 'ago_line_logs';
 const LS_LINE_ALLOWED = 'ago_line_allowed_users';
 let lineCurrentGroup = null;
 let lineGroupData    = {};
+let lineGroupIcons   = {};
+let lineGroupsMap    = {};
 
 const LINE_STATUS_LABEL = {
   received:      { text: '受信済',        color: '#3b82f6' },
@@ -9449,25 +9451,25 @@ async function renderLineLogs() {
   const chatEl  = document.getElementById('line-chat-panel');
   if (groupEl) groupEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px">読み込み中...</div>';
 
+  const kv = await kvGetAll();
+
   let logs = [];
   try {
-    const fetched = await kvGet('ago_line_logs');
-    if (Array.isArray(fetched)) logs = fetched;
-    else if (fetched) logs = JSON.parse(fetched) || [];
+    const raw = kv['ago_line_logs'];
+    if (raw) logs = JSON.parse(raw) || [];
   } catch(e) {
     logs = lsLoad(LS_LINE_LOGS) || [];
   }
 
-  // グループIDでログを分類
+  try { lineGroupIcons = JSON.parse(kv['ago_line_group_icons'] || '{}') || {}; } catch(e) { lineGroupIcons = {}; }
+  try { lineGroupsMap  = JSON.parse(kv['ago_line_groups']      || '{}') || {}; } catch(e) { lineGroupsMap = {}; }
+
   lineGroupData = {};
   for (const log of logs) {
     const gid = log.groupId || '__direct__';
     if (!lineGroupData[gid]) {
-      lineGroupData[gid] = {
-        groupId: gid,
-        group_name: log.group_name || (gid === '__direct__' ? '📱 ダイレクト' : 'グループ(' + gid.slice(-6) + ')'),
-        logs: []
-      };
+      const name = lineGroupsMap[gid] || log.group_name || (gid === '__direct__' ? 'ダイレクト' : '');
+      lineGroupData[gid] = { groupId: gid, group_name: name, logs: [] };
     }
     lineGroupData[gid].logs.push(log);
   }
@@ -9496,22 +9498,48 @@ function renderLineGroups() {
     return;
   }
   el.innerHTML = groups.map(g => {
-    const isActive  = g.groupId === lineCurrentGroup;
-    const lastLog   = g.logs[0];
-    const lastTime  = lastLog ? lastLog.ts.slice(5, 16) : '';
-    const lastText  = lastLog ? (lastLog.text || '').slice(0, 18) : '';
-    const hasError  = g.logs.some(l => l.status === 'error');
+    const isActive    = g.groupId === lineCurrentGroup;
+    const lastLog     = g.logs[0];
+    const lastTs      = lastLog?.ts || '';
+    const lastText    = (lastLog?.ai_reply || lastLog?.text || '').slice(0, 22);
+    const iconUrl     = lineGroupIcons[g.groupId] || '';
+    const displayName = g.group_name || 'グループ';
+    const readTs      = localStorage.getItem('agoline_read_' + g.groupId) || '';
+    const isRead      = readTs && lastTs && lastTs <= readTs;
+    const count       = g.logs.length;
+    const today       = new Date().toISOString().slice(0, 10);
+    const timeDisp    = lastTs ? (lastTs.startsWith(today) ? lastTs.slice(11, 16) : lastTs.slice(5, 10)) : '';
+    const avatarHtml  = iconUrl
+      ? `<img src="${escapeHtml(iconUrl)}" style="width:42px;height:42px;object-fit:cover;border-radius:50%">`
+      : `<svg viewBox="0 0 40 40" width="42" height="42" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#06C755"/><rect x="5" y="6" width="30" height="20" rx="6" fill="white"/><path d="M9 26 L6 34 L18 29 Z" fill="white"/><text x="20" y="21" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="900" fill="#06C755" letter-spacing="0.5">AGO</text></svg>`;
+    const badgeHtml   = !isRead
+      ? `<div style="position:absolute;bottom:-1px;right:-4px;background:#E53935;color:white;font-size:9px;font-weight:bold;min-width:16px;height:16px;border-radius:8px;padding:0 4px;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface);line-height:1">${count}</div>`
+      : '';
     return `
-    <div onclick="lineSelectGroup('${escapeHtml(g.groupId)}')" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);${isActive ? 'background:rgba(59,130,246,0.12);border-left:3px solid #3b82f6;' : ''}transition:background 0.1s">
-      <div style="font-weight:600;font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(g.group_name)}${hasError ? ' ⚠️' : ''}</div>
-      <div style="font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(lastText)}</div>
-      <div style="font-size:10px;color:var(--muted);margin-top:1px">${lastTime}</div>
+    <div onclick="lineSelectGroup('${escapeHtml(g.groupId)}')"
+      style="display:flex;align-items:center;padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);gap:8px;transition:background 0.1s;${isActive ? 'background:rgba(59,130,246,0.12);border-left:3px solid #3b82f6;' : ''}">
+      <div style="position:relative;width:42px;height:42px;flex-shrink:0">
+        <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;background:#06C755;display:flex;align-items:center;justify-content:center">
+          ${avatarHtml}
+        </div>
+        ${badgeHtml}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(displayName)}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(lastText)}</div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);flex-shrink:0">${timeDisp}</div>
     </div>`;
   }).join('');
 }
 
 function lineSelectGroup(groupId) {
   lineCurrentGroup = groupId;
+  const g = lineGroupData[groupId];
+  if (g && g.logs.length > 0) {
+    const lastTs = g.logs[0]?.ts || '';
+    if (lastTs) localStorage.setItem('agoline_read_' + groupId, lastTs);
+  }
   renderLineGroups();
   renderLineChat(groupId);
 }
@@ -9526,29 +9554,41 @@ function renderLineChat(groupId) {
   }
 
   const allProjects = lsLoad('ago_projects') || [];
-  // logs は新しい順なので逆転して時系列表示
-  const msgs = [...group.logs].reverse();
+  const msgs        = [...group.logs].reverse();
+  const displayName = group.group_name || 'グループ';
 
   el.innerHTML = `
-    <div style="font-weight:600;font-size:12px;color:var(--muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">${escapeHtml(group.group_name)} — ${msgs.length}件</div>
+    <div style="font-weight:600;font-size:12px;color:var(--muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">${escapeHtml(displayName)} — ${msgs.length}件</div>
     ` + msgs.map(log => {
     const st       = LINE_STATUS_LABEL[log.status] || { text: log.status, color: '#94a3b8' };
     const proj     = log.project_id ? allProjects.find(p => p.id == log.project_id) : null;
     const userName = escapeHtml(log.user_name || ('ユーザー' + (log.userId || '').slice(-6)));
-    const timeStr  = log.ts ? log.ts.slice(5, 16) : '';
+    const timeStr  = log.ts ? log.ts.slice(11, 16) : '';
+    const quotedBlock = log.quoted_text
+      ? `<div style="font-size:11px;color:var(--muted);border-left:3px solid #06c755;padding-left:6px;margin-bottom:6px;white-space:pre-wrap">${escapeHtml((log.quoted_text||'').slice(0,120))}</div>`
+      : '';
     return `
     <div style="margin-bottom:14px">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <span style="font-weight:600">${userName}</span>
-        <span>${timeStr}</span>
-        <span style="background:${st.color};color:#fff;font-size:10px;padding:1px 6px;border-radius:10px">${st.text}</span>
-      </div>
-      <div style="background:var(--surface);border-radius:0 10px 10px 10px;padding:8px 12px;display:inline-block;max-width:90%;font-size:13px;color:var(--text);white-space:pre-wrap;word-break:break-word;line-height:1.5">
-        ${log.quoted_text ? `<div style="font-size:11px;color:var(--muted);border-left:3px solid #06c755;padding-left:6px;margin-bottom:6px;white-space:pre-wrap">${escapeHtml((log.quoted_text||'').slice(0,120))}</div>` : ''}${escapeHtml(log.text || '')}
+      <div style="display:flex;align-items:flex-end;gap:6px">
+        <div style="width:30px;height:30px;border-radius:50%;background:#b0bec5;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">👤</div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:3px;display:flex;align-items:center;gap:6px">
+            <span style="font-weight:600">${userName}</span>
+            <span style="background:${st.color};color:#fff;font-size:9px;padding:1px 5px;border-radius:8px">${st.text}</span>
+          </div>
+          <div style="background:var(--surface);border-radius:4px 12px 12px 12px;padding:8px 12px;display:inline-block;max-width:80%;font-size:13px;color:var(--text);white-space:pre-wrap;word-break:break-word;line-height:1.5;box-shadow:0 1px 2px rgba(0,0,0,0.08)">
+            ${quotedBlock}${escapeHtml(log.text || '')}
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${timeStr}</div>
+        </div>
       </div>
       ${log.ai_reply ? `
-      <div style="margin-top:6px;text-align:right">
-        <div style="background:#3b82f6;color:#fff;border-radius:10px 0 10px 10px;padding:8px 12px;display:inline-block;max-width:90%;font-size:13px;white-space:pre-wrap;word-break:break-word;line-height:1.5;text-align:left">🤖 ${escapeHtml(log.ai_reply)}</div>
+      <div style="display:flex;align-items:flex-end;gap:6px;flex-direction:row-reverse;margin-top:6px">
+        <div style="width:30px;height:30px;border-radius:50%;overflow:hidden;flex-shrink:0"><svg viewBox="0 0 40 40" width="30" height="30" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="#06C755"/><rect x="5" y="6" width="30" height="20" rx="6" fill="white"/><path d="M9 26 L6 34 L18 29 Z" fill="white"/><text x="20" y="21" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="900" fill="#06C755" letter-spacing="0.5">AGO</text></svg></div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:3px;text-align:right">AI URVAN</div>
+          <div style="background:#b2dfdb;border-radius:12px 4px 12px 12px;padding:8px 12px;display:inline-block;max-width:80%;font-size:13px;color:var(--text);white-space:pre-wrap;word-break:break-word;line-height:1.5;box-shadow:0 1px 2px rgba(0,0,0,0.08)">${escapeHtml(log.ai_reply)}</div>
+        </div>
       </div>` : ''}
       ${log.error ? `<div style="font-size:11px;color:#ef4444;margin-top:4px">⚠️ ${escapeHtml(log.error)}</div>` : ''}
       ${proj ? `<div style="font-size:11px;color:#06c755;margin-top:4px;cursor:pointer" onclick="switchTab('projects');setTimeout(()=>renderPipelineDetail(${log.project_id}),100)">✅ 案件: ${escapeHtml(proj.name)}</div>` : ''}
