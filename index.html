@@ -5228,9 +5228,11 @@ function lsSave(key, data) {
 
 async function syncFromServer() {
   try {
-    const res = await fetch('api.php?action=kv_getAll', {
+    const res = await fetch('https://system002-od.ordermade-neon.com/api.php', {
+      method: 'POST',
       cache: 'no-store',
-      headers: {'X-AGO-Token': AGO_API_TOKEN}
+      headers: {'Content-Type': 'application/json', 'X-AGO-Token': AGO_API_TOKEN},
+      body: JSON.stringify({action: 'kv_getAll'})
     });
     if (!res.ok) return false;
     const json = await res.json();
@@ -9394,7 +9396,7 @@ async function initLineTab() {
   renderAllowedUsers();
   await renderLineLogs();
   if (!window._lineTabInterval) {
-    window._lineTabInterval = setInterval(() => renderLineLogs(), 30000);
+    window._lineTabInterval = setInterval(() => renderLineLogs(), 3000);
   }
   // SWからプッシュ到着通知を受けたら即時更新
   if (!window._swMsgListener && 'serviceWorker' in navigator) {
