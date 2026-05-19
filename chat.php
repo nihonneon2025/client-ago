@@ -67,6 +67,14 @@ if ($filter !== 'all' && isset($groups[$filter])) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AGOLINE</title>
+  <!-- PWA / ホーム画面追加 -->
+  <link rel="manifest" href="/chat-manifest.json">
+  <meta name="theme-color" content="#06C755">
+  <!-- iOS Safari -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="AGOLINE">
+  <link rel="apple-touch-icon" href="/agoline-icon.php?s=180">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<?= rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#06C755"/><rect x="6" y="7" width="28" height="19" rx="5" fill="white"/><path d="M10 26 L7 33 L17 28 Z" fill="white"/><text x="20" y="21" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#06C755">AGO</text></svg>') ?>">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
