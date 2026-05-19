@@ -85,22 +85,24 @@ self.addEventListener('push', (event) => {
       body: data.body || '',
       icon: 'icon-192.png',
       badge: 'icon-192.png',
-      data: data.url || '/',
+      data: data.url || '/chat.php',
     })
   );
 });
 
-// 通知クリック時にアプリを開く
+// 通知クリック時にチャットページを開く
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const targetUrl = event.notification.data || '/chat.php';
   event.waitUntil(
     clients.matchAll({ type: 'window' }).then((clientList) => {
+      // すでに chat.php が開いていればフォーカス
       for (const client of clientList) {
-        if (client.url.includes('index.html') && 'focus' in client) {
+        if (client.url.includes('chat.php') && 'focus' in client) {
           return client.focus();
         }
       }
-      return clients.openWindow(event.notification.data || '/');
+      return clients.openWindow(targetUrl);
     })
   );
 });

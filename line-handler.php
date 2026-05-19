@@ -445,7 +445,7 @@ SYS;
     // ── 10. ログ更新 ────────────────────────────────────────────────
     ago_log_update($log_id, [
         'status'   => 'replied',
-        'ai_reply' => mb_substr($reply_msg, 0, 200)
+        'ai_reply' => mb_substr($reply_msg, 0, 1000)
     ]);
 
     // ── 11. Web Push（完了通知）claude_task はキュー実行側が送るためスキップ ──
@@ -959,13 +959,13 @@ function ago_project_log($project_id, $agent, $message, $ts) {
     ago_kv_set('ago_project_logs', json_encode($logs, JSON_UNESCAPED_UNICODE));
 }
 
-function send_web_push($body, $title = 'AGO SYSTEM MANAGER') {
+function send_web_push($body, $title = 'AGO SYSTEM MANAGER', $url = '/chat.php') {
     $host = 'https://system002-od.ordermade-neon.com';
     $ch = curl_init($host . '/subscribe.php');
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => json_encode(['action' => 'send_all', 'title' => $title, 'body' => $body]),
+        CURLOPT_POSTFIELDS     => json_encode(['action' => 'send_all', 'title' => $title, 'body' => $body, 'url' => $url]),
         CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-AGO-Token: system002-od'],
         CURLOPT_TIMEOUT        => 15,
         CURLOPT_SSL_VERIFYPEER => false,

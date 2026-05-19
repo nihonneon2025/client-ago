@@ -125,6 +125,31 @@ foreach ($events as $event) {
         line_reply($LINE_CHANNEL_TOKEN, $replyToken, $pending_notify);
         ago_kv_set($notify_key, '');
         wh_log('[NOTIFY] delivered pending result to ' . ($groupId ?? $userId));
+        // ユーザー名・グループ名を簡易解決してログ保存
+        $_u_map  = json_decode(ago_kv_get('ago_line_users')  ?? '{}', true) ?: [];
+        $_u_name = $_u_map[$userId] ?? ('スタッフ(' . substr($userId, -6) . ')');
+        $_g_name = null;
+        if ($groupId) {
+            $_g_map  = json_decode(ago_kv_get('ago_line_groups') ?? '{}', true) ?: [];
+            $_g_name = $_g_map[$groupId] ?? ('グループ(' . substr($groupId, -6) . ')');
+        }
+        ago_log_save([
+            'id'          => date('YmdHis') . '_' . substr($userId, -6),
+            'ts'          => date('Y-m-d H:i:s'),
+            'userId'      => $userId,
+            'user_name'   => $_u_name,
+            'groupId'     => $groupId,
+            'group_name'  => $_g_name,
+            'source'      => $source,
+            'text'        => $text,
+            'quoted_text' => $quoted_text,
+            'status'      => 'replied',
+            'ai_reply'    => mb_substr($pending_notify, 0, 1000),
+            'project_id'  => null,
+            'error'       => null,
+            'reply_token' => null,
+        ]);
+        continue; // line-handler.php には渡さない
     }
 
     // グループチャットの場合：「ウルバン」が含まれなければ無視
