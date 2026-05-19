@@ -1,5 +1,9 @@
 Options -Indexes
 
+# FastCGI環境でPHP Basic認証が動くよう Authorization ヘッダーを転送
+RewriteEngine On
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
 # 検索エンジンにインデックスさせない
 Header always set X-Robots-Tag "noindex, nofollow"
 

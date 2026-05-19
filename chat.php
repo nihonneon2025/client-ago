@@ -2,9 +2,21 @@
 // chat.php — スマホ用 LINE ログビューア
 // Basic認証で保護・api.php 経由で ago_line_logs を取得して表示
 
-if (!isset($_SERVER['PHP_AUTH_USER']) ||
-    $_SERVER['PHP_AUTH_USER'] !== 'ago' ||
-    $_SERVER['PHP_AUTH_PW']   !== 'neon2026') {
+// FastCGI環境対応: PHP_AUTH_USER が取れない場合は Authorization ヘッダーから直接読む
+$_chat_user = $_SERVER['PHP_AUTH_USER'] ?? null;
+$_chat_pass = $_SERVER['PHP_AUTH_PW']   ?? null;
+if ($_chat_user === null) {
+    $raw = $_SERVER['HTTP_AUTHORIZATION']          // .htaccess RewriteRule 経由
+        ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] // リダイレクト経由
+        ?? '';
+    if (preg_match('/^Basic\s+(.+)$/i', $raw, $m)) {
+        $dec   = base64_decode($m[1]);
+        $colon = strpos($dec, ':');
+        $_chat_user = $colon !== false ? substr($dec, 0, $colon)  : $dec;
+        $_chat_pass = $colon !== false ? substr($dec, $colon + 1) : '';
+    }
+}
+if ($_chat_user !== 'ago' || $_chat_pass !== 'neon2026') {
     header('WWW-Authenticate: Basic realm="AGO Chat"');
     header('HTTP/1.0 401 Unauthorized');
     exit;
