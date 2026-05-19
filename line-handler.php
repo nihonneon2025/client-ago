@@ -450,9 +450,13 @@ SYS;
 
     // ── 11. Web Push（完了通知）claude_task はキュー実行側が送るためスキップ ──
     if (!$has_claude_task) {
-        $push_from = $user_name ?? ('ユーザー' . substr($userId, -6));
-        $push_body = "✅ {$push_from}さんの依頼が完了しました\n" . mb_substr($reply_msg, 0, 80);
-        send_web_push($push_body, 'AGO SYSTEM MANAGER');
+        $push_gid      = $log_entry['groupId'] ?? '';
+        $push_icons    = json_decode(ago_kv_get('ago_line_group_icons') ?? '{}', true) ?: [];
+        $push_gnames   = json_decode(ago_kv_get('ago_line_groups')      ?? '{}', true) ?: [];
+        $push_title    = ($push_gid && !empty($push_gnames[$push_gid])) ? $push_gnames[$push_gid] : 'AGO SYSTEM MANAGER';
+        $push_icon     = ($push_gid && !empty($push_icons[$push_gid]))  ? $push_icons[$push_gid]  : '';
+        $push_body     = 'AI URVAN: ' . mb_substr($reply_msg, 0, 100);
+        send_web_push($push_body, $push_title, '/chat.php' . ($push_gid ? '?g=' . urlencode($push_gid) : ''), $push_icon);
     }
 }
 
@@ -959,13 +963,15 @@ function ago_project_log($project_id, $agent, $message, $ts) {
     ago_kv_set('ago_project_logs', json_encode($logs, JSON_UNESCAPED_UNICODE));
 }
 
-function send_web_push($body, $title = 'AGO SYSTEM MANAGER', $url = '/chat.php') {
+function send_web_push($body, $title = 'AGO SYSTEM MANAGER', $url = '/chat.php', $icon = '', $badge_count = 1) {
     $host = 'https://system002-od.ordermade-neon.com';
     $ch = curl_init($host . '/subscribe.php');
+    $payload = ['action' => 'send_all', 'title' => $title, 'body' => $body, 'url' => $url, 'badge_count' => (int)$badge_count];
+    if ($icon) $payload['icon'] = $icon;
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => json_encode(['action' => 'send_all', 'title' => $title, 'body' => $body, 'url' => $url]),
+        CURLOPT_POSTFIELDS     => json_encode($payload),
         CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-AGO-Token: system002-od'],
         CURLOPT_TIMEOUT        => 15,
         CURLOPT_SSL_VERIFYPEER => false,

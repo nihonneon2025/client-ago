@@ -364,6 +364,7 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
   const _newestTs = <?= json_encode($detail_logs ? ($detail_logs[count($detail_logs)-1]['ts'] ?? '') : '') ?>;
   if (_gid && _newestTs) {
     localStorage.setItem('agoline_read_' + _gid, _newestTs);
+    if ('clearAppBadge' in navigator) navigator.clearAppBadge();
   }
   window.addEventListener('load', () => window.scrollTo(0, document.body.scrollHeight));
 </script>
@@ -426,6 +427,7 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
 <script>
 <?php if (!$filter): ?>
 document.addEventListener('DOMContentLoaded', function () {
+  var unread = 0;
   document.querySelectorAll('.room-item').forEach(function (item) {
     var gid    = item.dataset.gid;
     var lastTs = item.dataset.lastTs;
@@ -433,6 +435,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var badge  = item.querySelector('.room-badge');
     if (read && lastTs && lastTs <= read) {
       badge.style.display = 'none';
+    } else {
+      unread++;
     }
     item.addEventListener('click', function (e) {
       e.preventDefault();
@@ -440,6 +444,9 @@ document.addEventListener('DOMContentLoaded', function () {
       window.location.href = item.getAttribute('href');
     });
   });
+  if ('setAppBadge' in navigator) {
+    unread > 0 ? navigator.setAppBadge(unread) : navigator.clearAppBadge();
+  }
 });
 <?php endif; ?>
 </script>

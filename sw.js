@@ -80,20 +80,26 @@ self.addEventListener('push', (event) => {
   } catch (e) {
     data.body = event.data ? event.data.text() : data.body;
   }
+  const badgeCount = data.badge_count || 1;
   event.waitUntil(
-    self.registration.showNotification(data.title || 'AGO SYSTEM MANAGER', {
-      body: data.body || '',
-      icon: 'icon-192.png',
-      badge: 'icon-192.png',
-      data: data.url || '/chat.php',
-    })
+    Promise.all([
+      self.registration.showNotification(data.title || 'AGO SYSTEM MANAGER', {
+        body: data.body || '',
+        icon: data.icon || 'icon-192.png',
+        badge: 'icon-192.png',
+        data: { url: data.url || '/chat.php' },
+        tag: 'ago-line-notif',
+        renotify: true,
+      }),
+      self.navigator?.setAppBadge?.(badgeCount) ?? Promise.resolve(),
+    ])
   );
 });
 
 // 通知クリック時にチャットページを開く
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data || '/chat.php';
+  const targetUrl = (event.notification.data?.url) || '/chat.php';
   event.waitUntil(
     clients.matchAll({ type: 'window' }).then((clientList) => {
       // すでに chat.php が開いていればフォーカス
