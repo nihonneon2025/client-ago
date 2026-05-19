@@ -424,7 +424,7 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
         <?= $ago_svg ?>
       <?php endif; ?>
     </div>
-    <div class="room-badge"><?= $room['count'] ?></div>
+    <div class="room-badge" style="display:none"><?= $room['count'] ?></div>
   </div>
   <div class="room-body">
     <div class="room-name"><?= $name ?></div>
@@ -448,30 +448,47 @@ if ('serviceWorker' in navigator) {
 }
 
 <?php if (!$filter): ?>
+// バッジを localStorage の既読状態で表示/非表示する
+function updateRoomBadges() {
+  document.querySelectorAll('.room-item').forEach(function(item) {
+    var gid    = item.dataset.gid;
+    var lastTs = item.dataset.lastTs;
+    var readTs = localStorage.getItem('agoline_read_' + gid) || '';
+    var badge  = item.querySelector('.room-badge');
+    if (!badge) return;
+    badge.style.display = (lastTs && lastTs > readTs) ? 'flex' : 'none';
+  });
+}
+
+// 全ルームを既読扱いにしてバッジ消去
 function clearBadgesAndRead() {
-  document.querySelectorAll('.room-item').forEach(function (item) {
+  document.querySelectorAll('.room-item').forEach(function(item) {
     var gid    = item.dataset.gid;
     var lastTs = item.dataset.lastTs;
     if (lastTs) localStorage.setItem('agoline_read_' + gid, lastTs);
-    var badge = item.querySelector('.room-badge');
-    if (badge) badge.style.display = 'none';
   });
   if ('clearAppBadge' in navigator) navigator.clearAppBadge();
+  updateRoomBadges();
 }
-// 通常ロード＋BFCache復元（戻るボタン）両方に対応
-window.addEventListener('pageshow', function() { clearBadgesAndRead(); });
 
-document.addEventListener('DOMContentLoaded', function () {
-  document.querySelectorAll('.room-item').forEach(function (item) {
+// 通常ロード時: 未読バッジ表示 → すぐ既読化
+document.addEventListener('DOMContentLoaded', function() {
+  updateRoomBadges();   // 一瞬だけ未読を表示
+  clearBadgesAndRead(); // 即座に既読化
+
+  document.querySelectorAll('.room-item').forEach(function(item) {
     var gid    = item.dataset.gid;
     var lastTs = item.dataset.lastTs;
-    item.addEventListener('click', function (e) {
+    item.addEventListener('click', function(e) {
       e.preventDefault();
       localStorage.setItem('agoline_read_' + gid, lastTs);
       window.location.href = item.getAttribute('href');
     });
   });
 });
+
+// BFCache（戻るボタン）復元時も既読化
+window.addEventListener('pageshow', function() { clearBadgesAndRead(); });
 
 // SWからプッシュ到着通知を受けたらページをリロードして最新表示
 if ('serviceWorker' in navigator) {
