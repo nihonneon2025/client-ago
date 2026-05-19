@@ -9487,7 +9487,10 @@ async function removeAllowedUser(index) {
 async function renderLineLogs() {
   const groupEl = document.getElementById('line-group-panel');
   const chatEl  = document.getElementById('line-chat-panel');
-  if (groupEl) groupEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px">読み込み中...</div>';
+  // 初回のみ「読み込み中」を表示（3秒ごとの更新時はちかちか防止のため表示しない）
+  if (groupEl && !groupEl.querySelector('[onclick]')) {
+    groupEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px">読み込み中...</div>';
+  }
 
   const kv = await kvGetAll();
 
@@ -9510,6 +9513,13 @@ async function renderLineLogs() {
       lineGroupData[gid] = { groupId: gid, group_name: name, logs: [] };
     }
     lineGroupData[gid].logs.push(log);
+  }
+
+  // 現在表示中のグループは自動既読にする（バッジ消去）
+  if (lineCurrentGroup && lineGroupData[lineCurrentGroup]) {
+    const g = lineGroupData[lineCurrentGroup];
+    const lastTs = g.logs[0]?.ts || '';
+    if (lastTs) localStorage.setItem('agoline_read_' + lineCurrentGroup, lastTs);
   }
 
   renderLineGroups();
@@ -9537,7 +9547,7 @@ function renderLineGroups() {
     return;
   }
   let unreadCount = 0;
-  el.innerHTML = groups.map(g => {
+  const newHtml = groups.map(g => {
     const isActive    = g.groupId === lineCurrentGroup;
     const lastLog     = g.logs[0];
     const lastTs      = lastLog?.ts || '';
@@ -9572,6 +9582,8 @@ function renderLineGroups() {
       <div style="font-size:10px;color:var(--muted);flex-shrink:0">${timeDisp}</div>
     </div>`;
   }).join('');
+  // 変化があった時だけDOMを更新（ちかちか防止）
+  if (el.innerHTML !== newHtml) el.innerHTML = newHtml;
   if ('setAppBadge' in navigator) {
     unreadCount > 0 ? navigator.setAppBadge(unreadCount) : navigator.clearAppBadge();
   }
