@@ -66,7 +66,7 @@ if ($filter !== 'all' && isset($groups[$filter])) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AGO チャット</title>
+  <title>AGOLINE</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<?= rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="#06C755"/><rect x="6" y="7" width="28" height="19" rx="5" fill="white"/><path d="M10 26 L7 33 L17 28 Z" fill="white"/><text x="20" y="21" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="bold" fill="#06C755">AGO</text></svg>') ?>">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -241,7 +241,7 @@ if ($filter !== 'all' && isset($groups[$filter])) {
     <text x="20" y="21" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="900" fill="white" letter-spacing="0.5">AGO</text>
   </svg>
   <div class="title-block">
-    <h1>AGO チャット</h1>
+    <h1>AGOLINE</h1>
     <div class="meta"><?= count($logs) ?> 件表示 ／ <?= date('H:i') ?></div>
   </div>
   <button class="refresh-btn" onclick="location.reload()">↺ 更新</button>
