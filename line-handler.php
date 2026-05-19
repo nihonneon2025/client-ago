@@ -495,16 +495,14 @@ SYS;
         'ai_reply' => mb_substr($reply_msg, 0, 1000)
     ]);
 
-    // ── 11. Web Push（完了通知）claude_task はキュー実行側が送るためスキップ ──
-    if (!$has_claude_task) {
-        $push_gid      = $log_entry['groupId'] ?? '';
-        $push_icons    = json_decode(ago_kv_get('ago_line_group_icons') ?? '{}', true) ?: [];
-        $push_gnames   = json_decode(ago_kv_get('ago_line_groups')      ?? '{}', true) ?: [];
-        $push_title    = ($push_gid && !empty($push_gnames[$push_gid])) ? $push_gnames[$push_gid] : 'AGO SYSTEM MANAGER';
-        $push_icon     = ($push_gid && !empty($push_icons[$push_gid]))  ? $push_icons[$push_gid]  : '';
-        $push_body     = 'AI URVAN: ' . mb_substr($reply_msg, 0, 100);
-        send_web_push($push_body, $push_title, '/chat.php' . ($push_gid ? '?g=' . urlencode($push_gid) : ''), $push_icon);
-    }
+    // ── 11. Web Push（完了通知）────────────────────────────────────
+    $push_gid      = $log_entry['groupId'] ?? '';
+    $push_icons    = json_decode(ago_kv_get('ago_line_group_icons') ?? '{}', true) ?: [];
+    $push_gnames   = json_decode(ago_kv_get('ago_line_groups')      ?? '{}', true) ?: [];
+    $push_title    = ($push_gid && !empty($push_gnames[$push_gid])) ? $push_gnames[$push_gid] : 'AGO SYSTEM MANAGER';
+    $push_icon     = ($push_gid && !empty($push_icons[$push_gid]))  ? $push_icons[$push_gid]  : '';
+    $push_body     = 'AI URVAN: ' . mb_substr($reply_msg, 0, 100);
+    send_web_push($push_body, $push_title, '/chat.php' . ($push_gid ? '?g=' . urlencode($push_gid) : ''), $push_icon);
 }
 
 // ── アクション実行 ────────────────────────────────────────────────
