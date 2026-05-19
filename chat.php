@@ -471,24 +471,43 @@ function clearBadgesAndRead() {
   updateRoomBadges();
 }
 
-// 通常ロード時: 未読バッジ表示 → すぐ既読化
+// ルームをクリックしたとき: そのルームを既読化 → 全ルーム既読ならOSバッジもクリア
+function markRoomRead(gid, lastTs) {
+  localStorage.setItem('agoline_read_' + gid, lastTs);
+  var hasUnread = false;
+  document.querySelectorAll('.room-item').forEach(function(item) {
+    var g = item.dataset.gid;
+    var t = item.dataset.lastTs;
+    var r = localStorage.getItem('agoline_read_' + g) || '';
+    if (t && t > r) hasUnread = true;
+  });
+  if (!hasUnread) {
+    if ('clearAppBadge' in navigator) navigator.clearAppBadge();
+    // SWにバッジクリアを通知してカウンターをリセット
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'badge-cleared' });
+    }
+  }
+  updateRoomBadges();
+}
+
+// ページ読込: 未読バッジ表示のみ（既読化しない）
 document.addEventListener('DOMContentLoaded', function() {
-  updateRoomBadges();   // 一瞬だけ未読を表示
-  clearBadgesAndRead(); // 即座に既読化
+  updateRoomBadges();
 
   document.querySelectorAll('.room-item').forEach(function(item) {
     var gid    = item.dataset.gid;
     var lastTs = item.dataset.lastTs;
     item.addEventListener('click', function(e) {
       e.preventDefault();
-      localStorage.setItem('agoline_read_' + gid, lastTs);
+      markRoomRead(gid, lastTs);
       window.location.href = item.getAttribute('href');
     });
   });
 });
 
-// BFCache（戻るボタン）復元時も既読化
-window.addEventListener('pageshow', function() { clearBadgesAndRead(); });
+// BFCache（戻るボタン）復元時はバッジ表示を更新するのみ
+window.addEventListener('pageshow', function() { updateRoomBadges(); });
 
 // SWからプッシュ到着通知を受けたらページをリロードして最新表示
 if ('serviceWorker' in navigator) {
@@ -499,9 +518,19 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// フォアグラウンドに戻った時もバッジをクリア（SWがセットした後でも消す）
+// フォアグラウンドに戻ったときはバッジ表示を更新（全既読ならOSバッジもクリア）
 document.addEventListener('visibilitychange', function() {
-  if (!document.hidden && 'clearAppBadge' in navigator) navigator.clearAppBadge();
+  if (!document.hidden) {
+    updateRoomBadges();
+    var hasUnread = false;
+    document.querySelectorAll('.room-item').forEach(function(item) {
+      var g = item.dataset.gid;
+      var t = item.dataset.lastTs;
+      var r = localStorage.getItem('agoline_read_' + g) || '';
+      if (t && t > r) hasUnread = true;
+    });
+    if (!hasUnread && 'clearAppBadge' in navigator) navigator.clearAppBadge();
+  }
 });
 
 // ── 通知許可ボタン ──────────────────────────────────────────

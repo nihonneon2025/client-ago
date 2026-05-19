@@ -3,7 +3,10 @@
  * オフライン対応とキャッシュ管理
  */
 
-const CACHE_NAME = 'ago-system-v5';
+// OSバッジカウンター（SW生存期間中に蓄積・クリア時にリセット）
+let _badgeCount = 0;
+
+const CACHE_NAME = 'ago-system-v6';
 const STATIC_ASSETS = [
   'config.js',
   'manifest.json',
@@ -86,7 +89,8 @@ self.addEventListener('push', (event) => {
   } catch (e) {
     data.body = event.data ? event.data.text() : data.body;
   }
-  const badgeCount = data.badge_count || 1;
+  _badgeCount++; // 累積カウント（SW生存期間中に蓄積）
+  const badgeCount = _badgeCount;
   event.waitUntil(
     Promise.all([
       self.registration.showNotification(data.title || 'AGO SYSTEM MANAGER', {
@@ -109,6 +113,8 @@ self.addEventListener('push', (event) => {
 // 通知クリック時にチャットページを開く
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  _badgeCount = 0; // バッジカウンターをリセット
+  self.navigator?.clearAppBadge?.();
   const targetUrl = (event.notification.data?.url) || '/chat.php';
   event.waitUntil(
     clients.matchAll({ type: 'window' }).then((clientList) => {
@@ -121,4 +127,11 @@ self.addEventListener('notificationclick', (event) => {
       return clients.openWindow(targetUrl);
     })
   );
+});
+
+// クライアントからバッジクリア通知を受けたらカウンターをリセット
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'badge-cleared') {
+    _badgeCount = 0;
+  }
 });
