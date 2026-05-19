@@ -445,26 +445,20 @@ if ('serviceWorker' in navigator) {
 
 <?php if (!$filter): ?>
 document.addEventListener('DOMContentLoaded', function () {
-  var unread = 0;
+  // ルーム一覧を開いた時点で全グループを既読にしてバッジをクリア
   document.querySelectorAll('.room-item').forEach(function (item) {
     var gid    = item.dataset.gid;
     var lastTs = item.dataset.lastTs;
-    var read   = localStorage.getItem('agoline_read_' + gid);
-    var badge  = item.querySelector('.room-badge');
-    if (read && lastTs && lastTs <= read) {
-      badge.style.display = 'none';
-    } else {
-      unread++;
-    }
+    if (lastTs) localStorage.setItem('agoline_read_' + gid, lastTs);
+    var badge = item.querySelector('.room-badge');
+    if (badge) badge.style.display = 'none';
     item.addEventListener('click', function (e) {
       e.preventDefault();
       localStorage.setItem('agoline_read_' + gid, lastTs);
       window.location.href = item.getAttribute('href');
     });
   });
-  if ('setAppBadge' in navigator) {
-    unread > 0 ? navigator.setAppBadge(unread) : navigator.clearAppBadge();
-  }
+  if ('clearAppBadge' in navigator) navigator.clearAppBadge();
 });
 
 // SWからプッシュ到着通知を受けたらページをリロードして最新表示
