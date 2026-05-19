@@ -82,6 +82,12 @@ foreach ($queue as &$task) {
         // LINEログ更新用にlog_idと結果を記録
         if (!empty($task['log_id'])) {
             $log_updates[$task['log_id']] = $task['result'] ?? '作業が完了しました';
+        } else {
+            // log_id未設定フォールバック: requester_idで最新のprocessingログを探す
+            $fallback_updates[] = [
+                'requester_id' => $task['requester_id'] ?? '',
+                'result'       => $task['result'] ?? '作業が完了しました',
+            ];
         }
 
         // Web Push情報を後送り用に積む（KV更新が先）
@@ -93,9 +99,11 @@ unset($task);
 // ── KV更新を先に完了させる（Web Push前に済ませることでクリック時に最新データが見える）──
 
 // LINEログを更新
-if (!empty($log_updates)) {
+if (!empty($log_updates) || !empty($fallback_updates)) {
     $logs = json_decode(($all['data'] ?? [])['ago_line_logs'] ?? '[]', true) ?: [];
     $log_changed = false;
+
+    // log_idあり: 直接更新
     foreach ($logs as &$log) {
         $lid = $log['id'] ?? '';
         if (isset($log_updates[$lid])) {
@@ -106,6 +114,29 @@ if (!empty($log_updates)) {
         }
     }
     unset($log);
+
+    // log_idなし: requester_idで最新のprocessingログを探して更新
+    foreach ($fallback_updates as $fb) {
+        $uid = $fb['requester_id'] ?? '';
+        if (empty($uid)) continue;
+        $best_idx = -1;
+        $best_ts  = '';
+        foreach ($logs as $idx => $log) {
+            if (($log['userId'] ?? '') !== $uid) continue;
+            if (($log['status'] ?? '') !== 'processing') continue;
+            if ($best_idx < 0 || ($log['ts'] ?? '') > $best_ts) {
+                $best_idx = $idx;
+                $best_ts  = $log['ts'] ?? '';
+            }
+        }
+        if ($best_idx >= 0) {
+            $logs[$best_idx]['ai_reply'] = mb_substr($fb['result'], 0, 200);
+            $logs[$best_idx]['status']   = 'replied';
+            $log_changed = true;
+            nc_log('fallback_log_updated userId=' . $uid . ' id=' . ($logs[$best_idx]['id'] ?? '?'));
+        }
+    }
+
     if ($log_changed) {
         nc_kv_set('ago_line_logs', $logs);
     }
