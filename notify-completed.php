@@ -61,13 +61,19 @@ $updated      = false;
 $notify_count = 0;
 $log_updates  = [];  // log_id => result のマップ
 
+// バッジ数用に先にカウント
+$pending_count = 0;
+foreach ($queue as $t) {
+    if (($t['status'] ?? '') === 'done' && empty($t['notified_at'])) $pending_count++;
+}
+
 foreach ($queue as &$task) {
     if (($task['status'] ?? '') === 'done' && empty($task['notified_at'])) {
         $name   = $task['requester_name'] ?? 'スタッフ';
         $result = mb_substr($task['result'] ?? '作業が完了しました', 0, 100);
         $body   = "✅ {$name}さんの依頼が完了しました\n{$result}";
 
-        $push = nc_webpush('AGO SYSTEM MANAGER', $body, '/chat.php', 1);
+        $push = nc_webpush('AGO SYSTEM MANAGER', $body, '/chat.php', $pending_count);
         nc_log('task=' . ($task['id'] ?? '?') . ' sent=' . ($push['sent'] ?? 0) . ' failed=' . ($push['failed'] ?? 0));
 
         $task['notified_at'] = date('Y-m-d H:i:s');

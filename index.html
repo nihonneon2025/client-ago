@@ -44,9 +44,13 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .notif-btn.enabled{color:#10b981;border-color:#10b981}
 .notif-btn.denied{color:#ef4444;border-color:#ef4444;cursor:not-allowed}
 @media(max-width:480px){
+  #app-title{display:none}
   #btn-ja{font-size:0;padding:5px 7px}#btn-ja::after{content:'🇯🇵';font-size:16px}
   #btn-zh{font-size:0;padding:5px 7px}#btn-zh::after{content:'🇨🇳';font-size:16px}
   .header-right{gap:4px}
+  #line-pane-wrap{flex-direction:column!important}
+  #line-group-panel{width:100%!important;min-width:100%!important;max-height:110px;border-right:none!important;border-bottom:1px solid var(--border);flex-shrink:0}
+  #line-chat-panel{flex:1;min-height:0}
 }
 .theme-btn{background:var(--card);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:16px;transition:all .2s;line-height:1}
 .theme-btn:hover{background:var(--primary);border-color:var(--primary)}
@@ -712,7 +716,7 @@ body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!i
   </div>
 
   <!-- 2ペインレイアウト -->
-  <div style="flex:1;display:flex;overflow:hidden">
+  <div id="line-pane-wrap" style="flex:1;display:flex;overflow:hidden">
     <!-- 左: グループリスト -->
     <div id="line-group-panel" style="width:220px;min-width:160px;border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0;background:var(--surface)">
       <div style="padding:12px;text-align:center;color:var(--muted);font-size:12px">読み込み中...</div>
@@ -3981,9 +3985,9 @@ function applyFeatureVisibility() {
   const _curRole = _allUsers[uid] ? _allUsers[uid].role : '';
   const switchBtn = document.getElementById('switch-user-btn');
   if (switchBtn) switchBtn.style.display = (_curRole === 'master' || _curRole === 'developer') ? '' : 'none';
-  // 全ユーザー: ユーザー切替ボタンを表示
+  // master/developer以外: ユーザー切替ボタンを表示
   const logoutBtn = document.getElementById('user-logout-btn');
-  if (logoutBtn) logoutBtn.style.display = '';
+  if (logoutBtn) logoutBtn.style.display = (_curRole === 'master' || _curRole === 'developer') ? 'none' : '';
 
   const tabMap = {
     schedule: 'tab-schedule',
@@ -4190,9 +4194,9 @@ function completeLogin(userId) {
   const role = users[userId] ? users[userId].role : '';
   const switchBtn = document.getElementById('switch-user-btn');
   if (switchBtn) switchBtn.style.display = (role === 'master' || role === 'developer') ? '' : 'none';
-  // 全ユーザー: ユーザー切替ボタンを表示
+  // master/developer以外: ユーザー切替ボタンを表示
   const logoutBtn = document.getElementById('user-logout-btn');
-  if (logoutBtn) logoutBtn.style.display = '';
+  if (logoutBtn) logoutBtn.style.display = (role === 'master' || role === 'developer') ? 'none' : '';
 }
 
 function logoutUser() {
