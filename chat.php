@@ -174,6 +174,15 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
       border-radius: 14px; font-size: 13px;
       cursor: pointer; white-space: nowrap;
     }
+    .notif-btn {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.4);
+      color: white; padding: 5px 10px;
+      border-radius: 14px; font-size: 15px;
+      cursor: pointer; line-height: 1;
+    }
+    .notif-btn.enabled { background: rgba(16,185,129,0.3); border-color: #10b981; }
+    .notif-btn.denied  { opacity: 0.45; cursor: not-allowed; }
 
     /* ════════════════════════════════════
        ルーム一覧
@@ -316,6 +325,7 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
   <div style="flex:1">
     <div style="font-size:16px;font-weight:bold"><?= htmlspecialchars($detail_name) ?></div>
   </div>
+  <button class="notif-btn" id="notif-btn-detail" onclick="chatEnablePush()">🔔</button>
   <button class="refresh-btn" onclick="location.reload()">↺</button>
 </div>
 
@@ -379,6 +389,7 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
     <text x="20" y="21" text-anchor="middle" font-family="Arial,sans-serif" font-size="10" font-weight="900" fill="white" letter-spacing="0.5">AGO</text>
   </svg>
   <h1>AGOLINE</h1>
+  <button class="notif-btn" id="notif-btn-list" onclick="chatEnablePush()">🔔</button>
   <button class="refresh-btn" onclick="location.reload()">↺ 更新</button>
 </div>
 
@@ -453,14 +464,71 @@ document.addEventListener('DOMContentLoaded', function () {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'new-line-message') {
-      // チャット個別ページ（グループ指定あり）なら自動リロードしない
-      // ルーム一覧ページのみリロード
-      if (!location.search.includes('g=')) {
-        location.reload();
-      }
+      if (!location.search.includes('g=')) location.reload();
     }
   });
 }
+
+// ── 通知許可ボタン ──────────────────────────────────────────
+var CHAT_VAPID = 'BIk5ZM40CId0dIBLZ56RL9tqh2xRyBehkvBsZYcrJmHia65BOVSfLQAdsDC8NUZ6KOK_8G17DMO_FjyeWNZoXe0';
+
+function chatUpdateNotifBtn() {
+  var perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+  ['notif-btn-detail','notif-btn-list'].forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    btn.classList.remove('enabled','denied');
+    if (perm === 'granted')  { btn.classList.add('enabled'); btn.title = '通知有効'; }
+    else if (perm === 'denied') { btn.classList.add('denied'); btn.title = '通知がブロックされています（ブラウザ設定から許可してください）'; }
+    else { btn.title = 'タップして通知を有効にする'; }
+  });
+}
+
+async function chatEnablePush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    alert('このブラウザはプッシュ通知に対応していません');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    alert('通知がブロックされています。ブラウザの設定から「通知を許可する」に変更してください。');
+    return;
+  }
+  var perm = await Notification.requestPermission();
+  if (perm !== 'granted') return;
+  try {
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription();
+    var storedKey = localStorage.getItem('push_vapid_key_chat');
+    if (sub && storedKey !== CHAT_VAPID) { await sub.unsubscribe(); sub = null; }
+    if (!sub) {
+      var key = CHAT_VAPID;
+      var padding = '='.repeat((4 - key.length % 4) % 4);
+      var base64 = (key + padding).replace(/-/g,'+').replace(/_/g,'/');
+      var raw = atob(base64);
+      var arr = Uint8Array.from(Array.from(raw).map(function(c){return c.charCodeAt(0);}));
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: arr });
+    }
+    localStorage.setItem('push_vapid_key_chat', CHAT_VAPID);
+    var body = Object.assign({action:'subscribe', user_name: localStorage.getItem('push_user')||'chat-user'}, sub.toJSON());
+    await fetch('/subscribe.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    chatUpdateNotifBtn();
+    alert('✅ 通知を有効にしました');
+  } catch(e) {
+    alert('通知登録エラー: ' + e.message);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  chatUpdateNotifBtn();
+  // SWが準備できたら自動でサイレント登録（許可済みの場合のみ）
+  if ('serviceWorker' in navigator && Notification.permission === 'granted') {
+    navigator.serviceWorker.ready.then(function(reg) {
+      return reg.pushManager.getSubscription();
+    }).then(function(sub) {
+      if (!sub) chatEnablePush();
+    });
+  }
+});
 <?php endif; ?>
 </script>
 
