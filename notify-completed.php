@@ -67,14 +67,13 @@ foreach ($queue as $t) {
     if (($t['status'] ?? '') === 'done' && empty($t['notified_at'])) $pending_count++;
 }
 
+$pushes = []; // 送信するWeb Push情報を一時保存
+
 foreach ($queue as &$task) {
     if (($task['status'] ?? '') === 'done' && empty($task['notified_at'])) {
         $name   = $task['requester_name'] ?? 'スタッフ';
         $result = mb_substr($task['result'] ?? '作業が完了しました', 0, 100);
         $body   = "✅ {$name}さんの依頼が完了しました\n{$result}";
-
-        $push = nc_webpush('AGO SYSTEM MANAGER', $body, '/chat.php', $pending_count);
-        nc_log('task=' . ($task['id'] ?? '?') . ' sent=' . ($push['sent'] ?? 0) . ' failed=' . ($push['failed'] ?? 0));
 
         $task['notified_at'] = date('Y-m-d H:i:s');
         $updated = true;
@@ -84,11 +83,16 @@ foreach ($queue as &$task) {
         if (!empty($task['log_id'])) {
             $log_updates[$task['log_id']] = $task['result'] ?? '作業が完了しました';
         }
+
+        // Web Push情報を後送り用に積む（KV更新が先）
+        $pushes[] = ['body' => $body, 'task_id' => $task['id'] ?? '?'];
     }
 }
 unset($task);
 
-// ── LINEログを更新 ────────────────────────────────────────────────────
+// ── KV更新を先に完了させる（Web Push前に済ませることでクリック時に最新データが見える）──
+
+// LINEログを更新
 if (!empty($log_updates)) {
     $logs = json_decode(($all['data'] ?? [])['ago_line_logs'] ?? '[]', true) ?: [];
     $log_changed = false;
@@ -109,7 +113,15 @@ if (!empty($log_updates)) {
 
 if ($updated) {
     nc_kv_set('ago_claude_queue', $queue);
-    nc_log("done. notified={$notify_count}");
-} else {
+    nc_log("kv_updated. notified={$notify_count}");
+}
+
+// ── KV更新後にWeb Pushを送信 ─────────────────────────────────────────
+foreach ($pushes as $p) {
+    $push = nc_webpush('AGO SYSTEM MANAGER', $p['body'], '/chat.php', $pending_count);
+    nc_log('task=' . $p['task_id'] . ' sent=' . ($push['sent'] ?? 0) . ' failed=' . ($push['failed'] ?? 0));
+}
+
+if (!$updated) {
     nc_log('no pending');
 }
