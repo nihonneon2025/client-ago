@@ -8,5 +8,8 @@
   "theme_color": "#0f172a",
   "background_color": "#0f172a",
   "lang": "ja",
-  "icons": []
+  "icons": [
+    { "src": "/ago-icon.php?s=192", "sizes": "192x192", "type": "image/png" },
+    { "src": "/ago-icon.php?s=512", "sizes": "512x512", "type": "image/png" }
+  ]
 }
