@@ -377,6 +377,10 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
     if ('clearAppBadge' in navigator) navigator.clearAppBadge();
   }
   window.addEventListener('load', () => window.scrollTo(0, document.body.scrollHeight));
+  // SWがバッジをセットしてもフォアグラウンドにいる間はクリア
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden && 'clearAppBadge' in navigator) navigator.clearAppBadge();
+  });
 </script>
 
 <?php else: ?>
@@ -444,21 +448,29 @@ if ('serviceWorker' in navigator) {
 }
 
 <?php if (!$filter): ?>
-document.addEventListener('DOMContentLoaded', function () {
-  // ルーム一覧を開いた時点で全グループを既読にしてバッジをクリア
+function clearBadgesAndRead() {
   document.querySelectorAll('.room-item').forEach(function (item) {
     var gid    = item.dataset.gid;
     var lastTs = item.dataset.lastTs;
     if (lastTs) localStorage.setItem('agoline_read_' + gid, lastTs);
     var badge = item.querySelector('.room-badge');
     if (badge) badge.style.display = 'none';
+  });
+  if ('clearAppBadge' in navigator) navigator.clearAppBadge();
+}
+// 通常ロード＋BFCache復元（戻るボタン）両方に対応
+window.addEventListener('pageshow', function() { clearBadgesAndRead(); });
+
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.room-item').forEach(function (item) {
+    var gid    = item.dataset.gid;
+    var lastTs = item.dataset.lastTs;
     item.addEventListener('click', function (e) {
       e.preventDefault();
       localStorage.setItem('agoline_read_' + gid, lastTs);
       window.location.href = item.getAttribute('href');
     });
   });
-  if ('clearAppBadge' in navigator) navigator.clearAppBadge();
 });
 
 // SWからプッシュ到着通知を受けたらページをリロードして最新表示
@@ -469,6 +481,11 @@ if ('serviceWorker' in navigator) {
     }
   });
 }
+
+// フォアグラウンドに戻った時もバッジをクリア（SWがセットした後でも消す）
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden && 'clearAppBadge' in navigator) navigator.clearAppBadge();
+});
 
 // ── 通知許可ボタン ──────────────────────────────────────────
 var CHAT_VAPID = 'BIk5ZM40CId0dIBLZ56RL9tqh2xRyBehkvBsZYcrJmHia65BOVSfLQAdsDC8NUZ6KOK_8G17DMO_FjyeWNZoXe0';
