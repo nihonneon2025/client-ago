@@ -971,29 +971,40 @@ function ai_call($api_key, $system, $messages, $max_tokens = 1500) {
         'messages'   => $messages,
     ];
     if ($system) $payload['system'] = $system;
+    $body = json_encode($payload);
 
-    $ch = curl_init('https://api.anthropic.com/v1/messages');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => json_encode($payload),
-        CURLOPT_HTTPHEADER     => [
-            'x-api-key: ' . $api_key,
-            'anthropic-version: 2023-06-01',
-            'Content-Type: application/json',
-        ],
-        CURLOPT_TIMEOUT => 90,
-    ]);
-    $res  = curl_exec($ch);
-    $err  = curl_error($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($err) { wh_log('[AI_CURL_ERR] ' . $err); return null; }
-    $data = json_decode($res, true);
-    if (!isset($data['content'][0]['text'])) {
-        wh_log('[AI_API_ERR] code=' . $code . ' ' . mb_substr($res ?? '', 0, 300));
+    $max_attempts = 3;
+    for ($attempt = 1; $attempt <= $max_attempts; $attempt++) {
+        $ch = curl_init('https://api.anthropic.com/v1/messages');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $body,
+            CURLOPT_HTTPHEADER     => [
+                'x-api-key: ' . $api_key,
+                'anthropic-version: 2023-06-01',
+                'Content-Type: application/json',
+            ],
+            CURLOPT_TIMEOUT => 90,
+        ]);
+        $res  = curl_exec($ch);
+        $err  = curl_error($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($err) { wh_log('[AI_CURL_ERR] attempt=' . $attempt . ' ' . $err); return null; }
+        $data = json_decode($res, true);
+        if (isset($data['content'][0]['text'])) return $data['content'][0]['text'];
+
+        wh_log('[AI_API_ERR] attempt=' . $attempt . ' code=' . $code . ' ' . mb_substr($res ?? '', 0, 200));
+        // 529(過負荷) or 429(レート制限) → リトライ待機
+        if (in_array($code, [429, 529]) && $attempt < $max_attempts) {
+            sleep($attempt * 5); // 5s → 10s
+            continue;
+        }
+        break;
     }
-    return $data['content'][0]['text'] ?? null;
+    return null;
 }
 
 function find_project($projects, $id) {
