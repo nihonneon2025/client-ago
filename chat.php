@@ -1,5 +1,5 @@
 <?php
-// chat.php — AGOLINE v3（認証なし・チャットルーム一覧→詳細）
+// chat.php — AGOLINE v4（グループアイコン自動取得・バッジ位置修正）
 
 function chat_fetch_kv() {
     $url = 'https://' . $_SERVER['HTTP_HOST'] . '/api.php';
@@ -20,10 +20,27 @@ function chat_fetch_kv() {
     return $data['data'] ?? [];
 }
 
+function chat_kv_set($key, $value) {
+    $url = 'https://' . $_SERVER['HTTP_HOST'] . '/api.php';
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode(['action' => 'kv_set', 'key' => $key, 'value' => $value]),
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-AGO-Token: system002-od'],
+        CURLOPT_TIMEOUT        => 5,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+    ]);
+    curl_exec($ch);
+    curl_close($ch);
+}
+
 $kv          = chat_fetch_kv();
 $all_logs    = json_decode($kv['ago_line_logs']        ?? '[]', true) ?: []; // 新しい順
 $group_icons = json_decode($kv['ago_line_group_icons'] ?? '{}', true) ?: [];
-$filter   = $_GET['g'] ?? null;
+$groups_map  = json_decode($kv['ago_line_groups']      ?? '{}', true) ?: [];
+$filter      = $_GET['g'] ?? null;
 
 // ── チャットルーム一覧の構築 ──────────────────────────────────────
 $rooms = [];
@@ -31,15 +48,64 @@ foreach ($all_logs as $log) {
     $gid = $log['groupId'] ?? '__direct__';
     if (!isset($rooms[$gid])) {
         $preview = trim($log['ai_reply'] ?? '') ?: trim($log['text'] ?? '');
+        // グループ名: KV ago_line_groups を優先、次にログ内 group_name
+        $room_name = $groups_map[$gid]
+            ?? $log['group_name']
+            ?? ($gid === '__direct__' ? 'ダイレクトメッセージ' : '');
         $rooms[$gid] = [
-            'gid'       => $gid,
-            'name'      => $log['group_name'] ?? ($gid === '__direct__' ? 'ダイレクトメッセージ' : 'グループ'),
-            'last_ts'   => $log['ts'] ?? '',
-            'preview'   => $preview,
-            'count'     => 1,
+            'gid'     => $gid,
+            'name'    => $room_name,
+            'last_ts' => $log['ts'] ?? '',
+            'preview' => $preview,
+            'count'   => 1,
         ];
     } else {
         $rooms[$gid]['count']++;
+    }
+}
+
+// ── アイコン・グループ名が未取得のルームを LINE API で補完 ────────
+$LINE_CHANNEL_TOKEN = '';
+$config_file = __DIR__ . '/api-config.php';
+if (file_exists($config_file)) {
+    require $config_file;
+    $LINE_CHANNEL_TOKEN = defined('LINE_CHANNEL_TOKEN') ? LINE_CHANNEL_TOKEN : '';
+}
+if ($LINE_CHANNEL_TOKEN) {
+    $icons_updated  = false;
+    $groups_updated = false;
+    foreach (array_keys($rooms) as $gid) {
+        if ($gid === '__direct__') continue;
+        if (!empty($group_icons[$gid]) && !empty($groups_map[$gid])) continue;
+        $gch = curl_init('https://api.line.me/v2/bot/group/' . rawurlencode($gid) . '/summary');
+        curl_setopt_array($gch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $LINE_CHANNEL_TOKEN],
+            CURLOPT_TIMEOUT        => 5,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+        ]);
+        $gres  = curl_exec($gch);
+        $gcode = curl_getinfo($gch, CURLINFO_HTTP_CODE);
+        curl_close($gch);
+        if ($gcode === 200 && $gres) {
+            $gsummary = json_decode($gres, true);
+            if (!empty($gsummary['pictureUrl']) && empty($group_icons[$gid])) {
+                $group_icons[$gid] = $gsummary['pictureUrl'];
+                $icons_updated = true;
+            }
+            if (!empty($gsummary['groupName']) && empty($groups_map[$gid])) {
+                $groups_map[$gid]      = $gsummary['groupName'];
+                $rooms[$gid]['name']   = $gsummary['groupName'];
+                $groups_updated = true;
+            }
+        }
+    }
+    if ($icons_updated) {
+        chat_kv_set('ago_line_group_icons', json_encode($group_icons, JSON_UNESCAPED_UNICODE));
+    }
+    if ($groups_updated) {
+        chat_kv_set('ago_line_groups', json_encode($groups_map, JSON_UNESCAPED_UNICODE));
     }
 }
 
@@ -50,7 +116,7 @@ if ($filter) {
     foreach ($all_logs as $log) {
         if (($log['groupId'] ?? '__direct__') === $filter) {
             $detail_logs[] = $log;
-            if (!$detail_name) $detail_name = $log['group_name'] ?? 'グループ';
+            if (!$detail_name) $detail_name = $groups_map[$filter] ?? $log['group_name'] ?? 'グループ';
         }
     }
     $detail_logs = array_reverse($detail_logs); // 古い順（下が最新）
@@ -126,16 +192,42 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
     }
     .room-item:active { background: #f0f0f0; }
 
+    /* アバター＋バッジのラッパー */
+    .room-avatar-wrap {
+      position: relative;
+      width: 52px;
+      height: 52px;
+      flex-shrink: 0;
+    }
     .room-avatar {
-      width: 48px; height: 48px;
+      width: 52px; height: 52px;
       border-radius: 50%;
       background: #06C755;
-      flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
       overflow: hidden;
     }
-    .room-avatar svg { width: 48px; height: 48px; }
-    .room-avatar img { width: 48px; height: 48px; object-fit: cover; border-radius: 50%; }
+    .room-avatar svg { width: 52px; height: 52px; }
+    .room-avatar img { width: 52px; height: 52px; object-fit: cover; border-radius: 50%; }
+
+    /* バッジ: アバター右下に重ねる */
+    .room-badge {
+      position: absolute;
+      bottom: -1px;
+      right: -4px;
+      background: #E53935;
+      color: white;
+      font-size: 10px;
+      font-weight: bold;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 9px;
+      padding: 0 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid white;
+      line-height: 1;
+    }
 
     .room-body { flex: 1; min-width: 0; }
     .room-name {
@@ -153,13 +245,6 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
       flex-shrink: 0;
     }
     .room-time { font-size: 11px; color: #aaa; }
-    .room-badge {
-      background: #06C755; color: white;
-      font-size: 11px; font-weight: bold;
-      min-width: 18px; height: 18px;
-      border-radius: 9px; padding: 0 5px;
-      display: flex; align-items: center; justify-content: center;
-    }
     .no-rooms {
       text-align: center; color: #aaa;
       padding: 60px 20px; font-size: 15px;
@@ -275,7 +360,6 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
 <?php endif; ?>
 </div>
 <script>
-  // このルームを既読にする
   const _gid = <?= json_encode($filter) ?>;
   const _newestTs = <?= json_encode($detail_logs ? ($detail_logs[count($detail_logs)-1]['ts'] ?? '') : '') ?>;
   if (_gid && _newestTs) {
@@ -304,10 +388,9 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
 <?php foreach ($rooms as $room): ?>
 <?php
   $gid     = rawurlencode($room['gid']);
-  $name    = htmlspecialchars($room['name']);
+  $name    = htmlspecialchars($room['name'] ?: 'グループ');
   $preview = htmlspecialchars(mb_substr($room['preview'], 0, 40));
   $ts_raw  = $room['last_ts'];
-  // 今日なら時刻のみ、それ以外は日付
   $ts_disp = '';
   if ($ts_raw) {
     $d = date('Y-m-d');
@@ -317,12 +400,15 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
 <a class="room-item" href="?g=<?= $gid ?>"
    data-gid="<?= htmlspecialchars($room['gid']) ?>"
    data-last-ts="<?= htmlspecialchars($room['last_ts']) ?>">
-  <div class="room-avatar">
-    <?php if (!empty($group_icons[$room['gid']])): ?>
-      <img src="<?= htmlspecialchars($group_icons[$room['gid']]) ?>" alt="">
-    <?php else: ?>
-      <?= $ago_svg ?>
-    <?php endif; ?>
+  <div class="room-avatar-wrap">
+    <div class="room-avatar">
+      <?php if (!empty($group_icons[$room['gid']])): ?>
+        <img src="<?= htmlspecialchars($group_icons[$room['gid']]) ?>" alt="">
+      <?php else: ?>
+        <?= $ago_svg ?>
+      <?php endif; ?>
+    </div>
+    <div class="room-badge"><?= $room['count'] ?></div>
   </div>
   <div class="room-body">
     <div class="room-name"><?= $name ?></div>
@@ -330,7 +416,6 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
   </div>
   <div class="room-meta">
     <div class="room-time"><?= $ts_disp ?></div>
-    <div class="room-badge"><?= $room['count'] ?></div>
   </div>
 </a>
 <?php endforeach; ?>
@@ -340,7 +425,6 @@ $ago_svg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><rect wi
 
 <script>
 <?php if (!$filter): ?>
-// ルーム一覧: localStorage で既読チェック → バッジを非表示に
 document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('.room-item').forEach(function (item) {
     var gid    = item.dataset.gid;
@@ -348,11 +432,10 @@ document.addEventListener('DOMContentLoaded', function () {
     var read   = localStorage.getItem('agoline_read_' + gid);
     var badge  = item.querySelector('.room-badge');
     if (read && lastTs && lastTs <= read) {
-      badge.style.display = 'none'; // 既読 → バッジ消す
+      badge.style.display = 'none';
     }
     item.addEventListener('click', function (e) {
       e.preventDefault();
-      // タップ時点で既読フラグを立てる
       localStorage.setItem('agoline_read_' + gid, lastTs);
       window.location.href = item.getAttribute('href');
     });
