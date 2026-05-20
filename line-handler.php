@@ -420,7 +420,7 @@ SYS;
     $has_claude_task = !empty(array_filter($to_execute, fn($a) => ($a['type'] ?? '') === 'claude_task'));
 
     foreach ($to_execute as $action) {
-        execute_action($action, $userId, $users_map, $ts, $line_token, $kanno_id);
+        execute_action($action, $userId, $users_map, $ts, $line_token, $kanno_id, $log_id);
     }
 
     if ($to_confirm) {
@@ -514,7 +514,7 @@ SYS;
 }
 
 // ── アクション実行 ────────────────────────────────────────────────
-function execute_action($action, $userId, $users_map, $ts, $line_token = '', $kanno_id = '') {
+function execute_action($action, $userId, $users_map, $ts, $line_token = '', $kanno_id = '', $log_id = null) {
     $type = $action['type'] ?? '';
 
     switch ($type) {
