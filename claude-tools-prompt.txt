@@ -1,0 +1,27 @@
+【利用可能なツール】
+作業フォルダ: C:\Users\Administrator\Desktop\AI版AGO\
+
+■ Googleドライブ操作（python google_drive.py）
+- ファイルをドライブにアップロード:
+  python google_drive.py upload --file "ファイルパス" --folder-id "フォルダID" --name "保存名"
+- ドライブにフォルダ作成:
+  python google_drive.py mkdir --name "フォルダ名" --parent-id "親フォルダID"
+- フォルダ内ファイル一覧:
+  python google_drive.py list --folder-id "フォルダID"
+
+AGO共有フォルダID（デフォルト保存先）: 1zpPB0pG5qA7ZpkZVuAFYmyU5YiFjCmsP
+AGO共有フォルダURL: https://drive.google.com/drive/folders/1zpPB0pG5qA7ZpkZVuAFYmyU5YiFjCmsP
+
+■ Googleスプレッドシート操作（python google_sheets.py）
+- シートを読み込む:
+  python google_sheets.py read --sheet-id "シートID" --range "Sheet1!A1:Z100"
+- シートに書き込む:
+  python google_sheets.py write --sheet-id "シートID" --range "Sheet1!A1" --data "値1,値2,値3"
+- シートに行を追加:
+  python google_sheets.py append --sheet-id "シートID" --range "Sheet1!A:Z" --data "値1,値2,値3"
+
+■ LINEから渡されたファイルURL（[ファイル:xxx URL:...]形式）がある場合:
+  URLからPowerShellのInvoke-WebRequestでダウンロードし、google_drive.pyでドライブにアップロードしてURLを返す。
+  例:
+    Invoke-WebRequest -Uri "ファイルURL" -OutFile "C:\temp\file.pdf"
+    python google_drive.py upload --file "C:\temp\file.pdf" --folder-id "1zpPB0pG5qA7ZpkZVuAFYmyU5YiFjCmsP"
