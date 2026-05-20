@@ -20,13 +20,7 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
 
     ago_log_update($log_id, ['status' => 'processing']);
 
-    // グループチャットの場合は reply_token で即座に「着手します」を返信し、
-    // 完了後に Web Push で結果を通知する（LINE Push の課金を回避）
     $is_group_msg = !empty($log_entry['groupId']);
-    if ($is_group_msg && $line_token && $reply_token) {
-        line_reply($line_token, $reply_token, "着手します。\n完了したら管理システムのプッシュ通知でご連絡します📲");
-        $reply_token = null; // reply_token は1回しか使えない
-    }
 
     // ── 1. ユーザー名解決 ───────────────────────────────────────────
     $users_map   = json_decode(ago_kv_get('ago_line_users') ?? '{}', true) ?: [];
