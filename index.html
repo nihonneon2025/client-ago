@@ -142,7 +142,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .memo-input{flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:14px;outline:none}
 .memo-input:focus{border-color:var(--primary)}
 .memo-send-btn{background:var(--primary);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;white-space:nowrap}
-/* Customer list */
+/* Customer / Contact list */
 #customer-view{display:none;padding:16px 16px 100px}
 .customer-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all .2s}
 .customer-card:hover{border-color:var(--primary)}
@@ -152,6 +152,13 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .badge-new{background:rgba(16,185,129,.2);color:var(--green)}
 .badge-repeat{background:rgba(139,92,246,.2);color:var(--purple)}
 .customer-meta{font-size:12px;color:var(--muted)}
+.contact-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.contact-filter-btn{padding:4px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:12px;transition:all .2s}
+.contact-filter-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.badge-顧客{background:rgba(16,185,129,.2);color:var(--green)}
+.badge-取引先{background:rgba(59,130,246,.2);color:#60a5fa}
+.badge-仕入れ先{background:rgba(245,158,11,.2);color:#fbbf24}
+.badge-社内{background:rgba(139,92,246,.2);color:var(--purple)}
 /* Monthly stats */
 #monthly-view{display:none;padding:16px 16px 100px}
 .monthly-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
@@ -1605,6 +1612,7 @@ let lang         = localStorage.getItem('lang') || 'ja';
 let currentFilter = 'all';
 let currentOrder = null;
 let allOrders    = [];
+let contactFilter = 'all';
 let searchQuery  = '';
 let currentTab   = 'orders';
 let masterMode   = false;
@@ -2075,45 +2083,47 @@ function renderOrders() {
 }
 
 // ── 顧客リスト ────────────────────────────────────────────────
-function renderCustomerView() {
+function setContactFilter(type) {
+  contactFilter = type;
+  renderContactsView();
+}
+
+async function renderContactsView() {
   const view = document.getElementById('customer-view');
-  // Group by buyer_name
-  const map = {};
-  allOrders.forEach(o => {
-    const key = o.buyer_name || o.buyer_email || '（名前なし）';
-    if (!map[key]) map[key] = {name:key,email:o.buyer_email||'',orders:[]};
-    map[key].orders.push(o);
-  });
-  const customers = Object.values(map).sort((a,b) => b.orders.length - a.orders.length);
-  if (customers.length === 0) {
-    view.innerHTML = `<div class="empty"><div class="empty-icon">👥</div><p>${t('noCustomers')}</p></div>`;
+  view.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">読み込み中...</div>';
+  const contacts = (await kvGet('ago_contacts')) || [];
+  const types = ['all','顧客','取引先','仕入れ先','社内'];
+  const typeIcon = {all:'👥',顧客:'🤝',取引先:'🏢',仕入れ先:'📦',社内:'👷'};
+  const filtered = contactFilter === 'all' ? contacts : contacts.filter(c => c.type === contactFilter);
+  const filterHTML = `<div class="contact-filter">${
+    types.map(tp => {
+      const cnt = tp === 'all' ? contacts.length : contacts.filter(c => c.type === tp).length;
+      const label = tp === 'all' ? '全件' : tp;
+      return `<button class="contact-filter-btn${contactFilter===tp?' active':''}" onclick="setContactFilter('${tp}')">${typeIcon[tp]||''} ${label} (${cnt})</button>`;
+    }).join('')
+  }</div>`;
+  if (filtered.length === 0) {
+    view.innerHTML = filterHTML + `<div class="empty"><div class="empty-icon">👥</div><p>登録されたコンタクトはありません<br><small style="color:var(--muted)">LINEで「ウルバン、このグループを○○の取引先として登録して」と送ると追加されます</small></p></div>`;
     return;
   }
-  // 施工項目との紐づき（client_nameで照合）
-  const projsByClient = {};
-  schProjects.forEach(p => { if(p.client_name) { if(!projsByClient[p.client_name]) projsByClient[p.client_name]=[]; projsByClient[p.client_name].push(p); }});
-
-  view.innerHTML = customers.map(c => {
-    const isRepeat = c.orders.length > 1;
-    const badge = isRepeat
-      ? `<span class="customer-badge badge-repeat">${t('customerRepeat')}</span>`
-      : `<span class="customer-badge badge-new">${t('customerNew')}</span>`;
-    const totalAmt = c.orders.reduce((sum,o) => sum+(parseInt(o.amount)||0), 0);
-    const amtStr = totalAmt > 0 ? ' · ¥'+totalAmt.toLocaleString() : '';
-    const linkedProjs = projsByClient[c.name] || [];
-    const projLink = linkedProjs.length > 0
-      ? `<div style="margin-top:4px;font-size:12px">🏗 <a href="#" onclick="event.stopPropagation();filterProjectsByClient('${escHtml(c.name)}')" style="color:var(--accent);text-decoration:none">${linkedProjs.length}件の施工項目</a></div>`
-      : '';
-    return `<div class="customer-card" onclick="filterByCustomer('${escHtml(c.name)}')">
+  view.innerHTML = filterHTML + filtered.map(c => {
+    const badgeClass = 'badge-' + (c.type || '');
+    return `<div class="customer-card">
       <div class="customer-card-top">
         <span class="customer-name">${escHtml(c.name)}</span>
-        ${badge}
+        <span class="customer-badge ${badgeClass}">${escHtml(c.type||'')}</span>
       </div>
-      <div class="customer-meta">${c.orders.length}${t('customerOrders')}${amtStr}${c.email?' · '+escHtml(c.email):''}</div>
-      ${projLink}
+      <div class="customer-meta">
+        ${c.roomName ? '💬 '+escHtml(c.roomName) : ''}
+        ${c.email ? ' · '+escHtml(c.email) : ''}
+        ${c.phone ? ' · '+escHtml(c.phone) : ''}
+      </div>
+      ${c.createdAt ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">${escHtml(c.createdAt)} 登録</div>` : ''}
     </div>`;
   }).join('');
 }
+
+function renderCustomerView() { renderContactsView(); }
 
 function filterByCustomer(name) {
   switchTab('orders');
