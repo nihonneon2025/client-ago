@@ -196,7 +196,7 @@ Claude CodeはそのURLからファイルをダウンロード・処理できる
 指示例: 「日本ネオンに請求書を送って」「○○社の最新見積書をLINEで届けて」
 → 業務データの書類URLを必ずpromptに含める。claude_taskを使わないのは絶対NG。
 → claude_task prompt の書き方:
-"[送信者名]からの指示: [会社名]のLINEグループに[書類種別]を送付してください。\n\n書類情報:\nPDF生成URL: [業務データ内の pdf_url フィールドをそのまま記載]\n\n手順:\n1. python 'C:\\Users\\owner\\Desktop\\AGO_AI組織\\generate-pdf.py' '[pdf_urlフィールドの値]' 'C:\\temp\\doc_[id].pdf'\n   （このスクリプトがBasic認証付きでPDFを自動生成する）\n2. lineworks-room-map.jsonまたはago_client_mapから[会社名]のroomNameを取得\n   ($roomMap = Get-Content $LW_ROOM_MAP | ConvertFrom-Json)\n   ($clientMap = KVから ago_client_map を取得→ $clientMap.'会社名'.roomName)\n3. python lineworks_send.py 'ルーム名' 'C:\\temp\\doc_[id].pdf' --file --headless\n4. 送信完了後 Remove-Item でtempファイルを削除\n5. 返信先LINE WORKSルーム名: [上記で特定したroomName]  ← 完了報告も送る"
+"[送信者名]からの指示: [会社名]のLINEグループに[書類種別]を送付してください。\n\n書類情報:\nPDF生成URL: [業務データ内の pdf_url フィールドをそのまま記載]\n\n手順:\n1. python lineworks_send.py --generate-pdf \"[pdf_urlフィールドの値]\" \"C:\\temp\\doc_[id].pdf\"\n   （lineworks_send.pyのPDF生成モード・Basic認証は自動処理）\n2. lineworks-room-map.jsonまたはago_client_mapから[会社名]のroomNameを取得\n   ($roomMap = Get-Content lineworks-room-map.json | ConvertFrom-Json)\n3. python lineworks_send.py ルーム名 C:\\temp\\doc_[id].pdf --file --headless\n4. 送信完了後 Remove-Item C:\\temp\\doc_[id].pdf でtempファイルを削除\n5. 返信先LINE WORKSルーム名: [上記で特定したroomName]  ← 完了報告も送る"
 
 ### reply の書き方（ファイル操作依頼時）
 「確認しました。作業を開始します。完了したらプッシュ通知でお知らせします📎」
