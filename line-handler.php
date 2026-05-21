@@ -75,18 +75,21 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
         $po_docs  = array_values(array_filter($pos,       fn($o) => (string)$o['project_id'] === (string)$pid));
 
         if ($est_docs) $entry['見積書'] = array_map(fn($e) => [
-            'no' => $e['doc_number'] ?? '', 'total' => '¥' . number_format($e['total'] ?? 0),
-            'url' => $base_url . '/print-doc.php?key=ago_estimates&id=' . $e['id']
+            'no'      => $e['doc_number'] ?? '', 'total' => '¥' . number_format($e['total'] ?? 0),
+            'url'     => $base_url . '/print-doc.php?key=ago_estimates&id=' . $e['id'],
+            'pdf_url' => $base_url . '/pdf-export.php?key=ago_estimates&id=' . $e['id'],
         ], $est_docs);
 
         if ($inv_docs) $entry['請求書'] = array_map(fn($i) => [
-            'no' => $i['doc_number'] ?? '', 'total' => '¥' . number_format($i['total'] ?? 0),
-            'url' => $base_url . '/print-doc.php?key=ago_invoices&id=' . $i['id']
+            'no'      => $i['doc_number'] ?? '', 'total' => '¥' . number_format($i['total'] ?? 0),
+            'url'     => $base_url . '/print-doc.php?key=ago_invoices&id=' . $i['id'],
+            'pdf_url' => $base_url . '/pdf-export.php?key=ago_invoices&id=' . $i['id'],
         ], $inv_docs);
 
         if ($po_docs)  $entry['発注書'] = array_map(fn($o) => [
-            'no' => $o['doc_number'] ?? '', 'total' => '¥' . number_format($o['total'] ?? 0),
-            'url' => $base_url . '/print-doc.php?key=ago_purchase_orders&id=' . $o['id']
+            'no'      => $o['doc_number'] ?? '', 'total' => '¥' . number_format($o['total'] ?? 0),
+            'url'     => $base_url . '/print-doc.php?key=ago_purchase_orders&id=' . $o['id'],
+            'pdf_url' => $base_url . '/pdf-export.php?key=ago_purchase_orders&id=' . $o['id'],
         ], $po_docs);
 
         $proj_list[] = $entry;
@@ -193,7 +196,7 @@ Claude CodeはそのURLからファイルをダウンロード・処理できる
 指示例: 「日本ネオンに請求書を送って」「○○社の最新見積書をLINEで届けて」
 → 業務データの書類URLを必ずpromptに含める。claude_taskを使わないのは絶対NG。
 → claude_task prompt の書き方:
-"[送信者名]からの指示: [会社名]のLINEグループに[書類種別]を送付してください。\n\n書類情報:\n書類URL: [業務データ内の url フィールドをそのまま記載]\n\n手順:\n1. Invoke-WebRequestで書類URLをC:\\temp\\invoice_XXX.pdfにダウンロード\n   (URLの先頭を https://system002:nihonneon@system002-od... に変更して認証付きアクセス)\n2. lineworks-room-map.jsonまたはago_client_mapから[会社名]のroomNameを取得\n   ($roomMap = Get-Content $LW_ROOM_MAP | ConvertFrom-Json)\n   ($clientMap = KVから ago_client_map を取得→ $clientMap.'会社名'.roomName)\n3. python lineworks_send.py 'ルーム名' 'C:\\temp\\invoice_XXX.pdf' --file --headless\n4. 送信完了後 Remove-Item でtempファイルを削除\n5. 返信先LINE WORKSルーム名: [上記で特定したroomName]  ← 完了報告も送る"
+"[送信者名]からの指示: [会社名]のLINEグループに[書類種別]を送付してください。\n\n書類情報:\nPDF生成URL: [業務データ内の pdf_url フィールドをそのまま記載]\n\n手順:\n1. python 'C:\\Users\\owner\\Desktop\\AGO_AI組織\\generate-pdf.py' '[pdf_urlフィールドの値]' 'C:\\temp\\doc_[id].pdf'\n   （このスクリプトがBasic認証付きでPDFを自動生成する）\n2. lineworks-room-map.jsonまたはago_client_mapから[会社名]のroomNameを取得\n   ($roomMap = Get-Content $LW_ROOM_MAP | ConvertFrom-Json)\n   ($clientMap = KVから ago_client_map を取得→ $clientMap.'会社名'.roomName)\n3. python lineworks_send.py 'ルーム名' 'C:\\temp\\doc_[id].pdf' --file --headless\n4. 送信完了後 Remove-Item でtempファイルを削除\n5. 返信先LINE WORKSルーム名: [上記で特定したroomName]  ← 完了報告も送る"
 
 ### reply の書き方（ファイル操作依頼時）
 「確認しました。作業を開始します。完了したらプッシュ通知でお知らせします📎」
