@@ -11,8 +11,8 @@ $LOG_FILE         = "$AGO_DIR\ago-daemon.log"
 $POLL_SEC         = 5
 $TASK_TIMEOUT     = 600   # claude の最大実行秒数
 
-$LW_SCRIPT   = "$AGO_DIR\lineworks_send.py"
-$LW_ROOM_MAP = "$AGO_DIR\lineworks-room-map.json"
+$LW_BOT_SCRIPT = "$AGO_DIR\lineworks_bot_send.py"
+$LW_ROOM_MAP   = "$AGO_DIR\lineworks-room-map.json"
 
 # ── ログ出力 ─────────────────────────────────────────────────
 function Write-Log($msg) {
@@ -48,20 +48,19 @@ function ConvertTo-JsonArray($items) {
     return "[" + ($parts -join ",") + "]"
 }
 
-# ── LINE WORKS Playwright 送信 ────────────────────────────────
+# ── LINE WORKS Bot API 送信 ───────────────────────────────────
 function Send-LineWorksMessage($targetId, $message) {
     if (-not $targetId) { Write-Log "[LW] targetId empty, skip"; return }
 
-    # ルームマップを読み込む
-    $roomName = $null
+    # LINEのグループ/ユーザーID → LINE WORKSチャンネルID を引く
+    $channelId = $null
     if (Test-Path $LW_ROOM_MAP) {
         $map = Get-Content $LW_ROOM_MAP -Raw -Encoding UTF8 | ConvertFrom-Json
-        $roomName = $map.$targetId
+        $channelId = $map.$targetId
     }
 
-    if (-not $roomName) {
-        Write-Log "[LW] ルームマップ未登録: $targetId → KVフォールバック"
-        Invoke-KVSet "ago_pending_notify_$targetId" $message
+    if (-not $channelId) {
+        Write-Log "[LW] チャンネルID未登録: $targetId → スキップ"
         return
     }
 
@@ -70,13 +69,12 @@ function Send-LineWorksMessage($targetId, $message) {
     [System.IO.File]::WriteAllText($tmpFile, $message, [System.Text.Encoding]::UTF8)
 
     try {
-        Write-Log "[LW] 送信開始 room=$roomName"
-        $output = & python $LW_SCRIPT $roomName $tmpFile --headless 2>&1
+        Write-Log "[LW] Bot API送信開始 channel=$channelId"
+        $output = & python $LW_BOT_SCRIPT $channelId $tmpFile 2>&1
         Write-Log "[LW] $output"
-        Write-Log "[LW] 送信完了 to=$roomName"
+        Write-Log "[LW] Bot API送信完了"
     } catch {
-        Write-Log "[LW] 送信エラー: $_ → KVフォールバック"
-        Invoke-KVSet "ago_pending_notify_$targetId" $message
+        Write-Log "[LW] Bot API送信エラー: $_"
     } finally {
         Remove-Item $tmpFile -ErrorAction SilentlyContinue
     }
@@ -249,23 +247,12 @@ $toolsPrompt
 
             Start-Sleep -Seconds 3
 
-            # LINE グループへ完了通知（200通上限のため届かない場合あり・来たらラッキー）
+            # LINE WORKS Bot API でグループへ完了報告
             $requester_id = $task.requester_id
             if ($requester_id) {
                 $line_result_text = $claudeResult.text.Substring(0, [Math]::Min(300, $claudeResult.text.Length))
                 $line_msg = "✅ 作業完了（$((Get-Date -Format 'HH:mm'))完了）`n`n$line_result_text"
-                $line_body = [System.Text.Encoding]::UTF8.GetBytes(
-                    (@{to = $requester_id; message = $line_msg} | ConvertTo-Json -Compress)
-                )
-                try {
-                    Invoke-RestMethod -Uri $LINE_PUSH_URL -Method POST `
-                        -ContentType "application/json; charset=utf-8" `
-                        -Headers @{"X-AGO-Token" = $KV_TOKEN} `
-                        -Body $line_body -TimeoutSec 10 | Out-Null
-                    Write-Log "[LINE] グループ通知送信 to=$requester_id"
-                } catch {
-                    Write-Log "[LINE] 送信失敗（200通上限の可能性）: $($_.Exception.Message)"
-                }
+                Send-LineWorksMessage $requester_id $line_msg
             }
 
             # WebPush を即時送信（クロン3分待ちをなくす）
@@ -278,9 +265,6 @@ $toolsPrompt
         } catch {
             Write-Log "[KV] save error: $_"
         }
-
-        # LINE WORKS への返信は廃止済み（WebPush + 管理マネで通知）
-        # Send-LineWorksMessage $task.requester_id $lineMsg
 
     } catch {
         Write-Log "[ERR] $_"
