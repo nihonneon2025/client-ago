@@ -1,0 +1,81 @@
+===== claude_task 完了報告の宛先フロー調査 =====
+調査日時: 2026-05-21
+調査者: AGO AI本部長 ウルバン
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【宛先（requester_id）の取得ルート】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step 1: line-webhook.php:76
+  $groupId = $event['source']['groupId'] ?? null;
+  → グループ送信なら groupId、個人トークなら null
+
+Step 2: line-handler.php:408
+  $action['_reply_target'] = $group_id ?? $userId;
+  → LINE AI が claude_task アクションを返した後に注入
+  → グループなら group ID、個人ならユーザーID
+
+Step 3: execute_action（line-handler.php:703）
+  'requester_id' => $reply_target,
+  → ago_claude_queue エントリの独立フィールドとして KV に保存
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【プロンプトへの埋め込み】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+デーモン（ago-claude-daemon.ps1:151-159）が Claude Code に渡すプロンプト:
+
+  【LINEからの業務指示】
+  送信者: {requester_name}   ← 人名のみ（例: 小野寺）
+  指示内容: {task.prompt}    ← LINE AI が生成した自然言語指示
+  {claude-tools-prompt.txt}  ← ツール説明
+
+  ※ group ID / user ID はプロンプト本文に入っていない
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【完了報告の送信】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+デーモンが Claude Code 完了後に PowerShell で実行:
+  → $task.requester_id に line-push.php 経由で LINE プッシュ
+
+Claude Code 自身はグループIDを知らないため、
+自力で LINE グループに送る手段を持っていない。
+完了通知はデーモンの PowerShell ブロックが唯一の送信手段。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【特定された問題】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+claude-tools-prompt.txt:31 の絶対命令:
+  「返信・完了報告は必ず指示を受けたLINEグループに送ること」
+
+→ 実態: Claude Code はグループIDを知らないため実行不可能
+  デーモンが requester_id にプッシュするだけ
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【改善案】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+案A: $fullPrompt に requester_id を明示的に追記
+  【LINEからの業務指示】
+  送信者: {requester_name}
+  返信先ID: {task.requester_id}   ← 追加
+  指示内容: {task.prompt}
+
+案B: claude-tools-prompt.txt の絶対命令を実態に合わせて書き直す
+  「返信はデーモンが自動送信する。Claude Code は結果を日本語で返すだけでよい」
+
+案C: notify-completed.php に group_id パラメータを追加し、
+  Claude Code から直接グループ宛に送れるようにする
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【本日の調査まとめ（5/21）】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+・デーモン: 正常動作中（テストタスク処理確認済み）
+・LINE未返信の原因: グループチャットで「ウルバン」を含まずに送信
+  → webhook は受信しているが line-webhook.php:157 のフィルターで除外
+  → グループLINEから指示するときは「ウルバン」を冒頭に入れる必要あり
+・夜間エラー（18:39〜09:06）: Xサーバー側の接続タイムアウト。致命的ではなし
+・Haiku 4.5 障害対応: Sonnet に切替済み（日本ネオンAI がコミット 4737c5f でデプロイ済み）
