@@ -12,6 +12,25 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     $ts          = $log_entry['ts'];
     $reply_token = $log_entry['reply_token'] ?? null;
 
+    // 引用なし かつ グループメッセージの場合、最近共有されたファイルを自動検出（30分以内）
+    if (!$quoted_text && !empty($log_entry['groupId'])) {
+        $gid_check   = $log_entry['groupId'];
+        $cache_all   = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
+        $cutoff_ts   = time() - 1800;
+        $recent_files = [];
+        foreach ($cache_all as $fc) {
+            if (!is_array($fc)) continue;
+            if (($fc['groupId'] ?? '') !== $gid_check) continue;
+            if (($fc['ts'] ?? 0) < $cutoff_ts) continue;
+            $recent_files[] = $fc;
+        }
+        if ($recent_files) {
+            $file_refs  = array_map(fn($f) => '[ファイル:' . $f['filename'] . ' URL:' . $f['url'] . ']', $recent_files);
+            $quoted_text = implode("\n", $file_refs);
+            wh_log('[AUTO_FILE] ' . count($recent_files) . '件のファイルをグループキャッシュから自動注入');
+        }
+    }
+
     // リプライ（引用）がある場合は本文の前に引用元を付加
     if ($quoted_text) {
         $text = "【引用メッセージ】\n{$quoted_text}\n\n【指示】\n{$text}";

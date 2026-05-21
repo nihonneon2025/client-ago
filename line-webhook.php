@@ -61,7 +61,14 @@ foreach ($events as $event) {
         $url   = save_line_file($fid, $LINE_CHANNEL_TOKEN, $fname);
         if ($url) {
             $msg_cache = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
-            $msg_cache[$fid] = ['type' => $event['message']['type'], 'url' => $url, 'filename' => $fname];
+            $msg_cache[$fid] = [
+                            'type'    => $event['message']['type'],
+                            'url'     => $url,
+                            'filename'=> $fname,
+                            'groupId' => $event['source']['groupId'] ?? null,
+                            'userId'  => $event['source']['userId'] ?? null,
+                            'ts'      => time(),
+                        ];
             if (count($msg_cache) > 200) $msg_cache = array_slice($msg_cache, -200, null, true);
             ago_kv_set('ago_line_msg_cache', json_encode($msg_cache, JSON_UNESCAPED_UNICODE));
             wh_log('[FILE] saved id=' . $fid . ' url=' . $url);
