@@ -7,8 +7,8 @@ RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 # 検索エンジンにインデックスさせない
 Header always set X-Robots-Tag "noindex, nofollow"
 
-# DBファイルへの直接アクセスを禁止
-<FilesMatch "\.(db|db-wal|db-shm|bat|php\.bak)$">
+# DBファイル・ログファイルへの直接アクセスを禁止
+<FilesMatch "\.(db|db-wal|db-shm|bat|php\.bak|log)$">
     Order Allow,Deny
     Deny from all
 </FilesMatch>
@@ -43,12 +43,6 @@ Header always set X-Robots-Tag "noindex, nofollow"
 <Files "api.php">
     Require all granted
 </Files>
-<Files "line-debug.php">
-    Require all granted
-</Files>
 <Files "line-push.php">
-    Require all granted
-</Files>
-<Files "line_push_debug.log">
     Require all granted
 </Files>
