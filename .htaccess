@@ -33,6 +33,11 @@ Header always set X-Robots-Tag "noindex, nofollow"
     Require all granted
 </Files>
 
+# ライセンス確認はBasic認証なしでアクセス可能にする（デーモンから自動呼び出し）
+<Files "license-check.php">
+    Require all granted
+</Files>
+
 # LINEWebhook・API・デバッグ用はBasic認証なしでアクセス可能にする
 <Files "line-webhook.php">
     Require all granted
