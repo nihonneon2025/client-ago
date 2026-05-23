@@ -18,11 +18,19 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Node.js（難読化ツール用・本番不要）
+node_modules/
+package-lock.json
+
 # 一時ファイル
 *.log
 *.tmp
 *.bak
+*.bak_*
 *~
+
+# ローカルテスト用ファイル
+test_*
 
 # 作業メモ
 セッティング手順書.txt
