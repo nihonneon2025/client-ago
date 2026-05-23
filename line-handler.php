@@ -39,8 +39,9 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     $estimates = json_decode(ago_kv_get('ago_estimates')       ?? '[]', true) ?: [];
     $invoices  = json_decode(ago_kv_get('ago_invoices')        ?? '[]', true) ?: [];
     $pos       = json_decode(ago_kv_get('ago_purchase_orders') ?? '[]', true) ?: [];
-    $orders    = json_decode(ago_kv_get('ago_orders')          ?? '[]', true) ?: [];
-    $schedule  = json_decode(ago_kv_get('ago_kanno_schedule') ?? '{}', true) ?: [];
+    $orders     = json_decode(ago_kv_get('ago_orders')          ?? '[]', true) ?: [];
+    $schedule   = json_decode(ago_kv_get('ago_kanno_schedule') ?? '{}', true) ?: [];
+    $client_map = json_decode(ago_kv_get('ago_client_map')     ?? '{}', true) ?: [];
 
     // 確認待ちアクション（line-alert.phpが生成・菅野さんの返答待ち）
     $pending_raw  = ago_kv_get('ago_pending_actions');
@@ -147,8 +148,9 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
     ));
 
     // ── 5. システムプロンプト ───────────────────────────────────────
-    $data_json   = json_encode($proj_list,   JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-    $orders_json = json_encode($order_list,  JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    $data_json       = json_encode($proj_list,   JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    $orders_json     = json_encode($order_list,  JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    $client_map_json = json_encode($client_map,  JSON_UNESCAPED_UNICODE);
     $is_onodera    = ($onodera_id && $userId === $onodera_id);
     $is_kanno_str  = ($kanno_id && $userId === $kanno_id) ? 'はい' : 'いいえ';
     $is_onodera_str = $is_onodera ? 'はい' : 'いいえ';
@@ -195,8 +197,9 @@ Claude CodeはそのURLからファイルをダウンロード・処理できる
 ### パターン5: 取引先LINEグループに請求書・見積書等を実ファイルで送付（引用なし・必ずclaude_task）
 指示例: 「日本ネオンに請求書を送って」「○○社の最新見積書をLINEで届けて」
 → 業務データの書類URLを必ずpromptに含める。claude_taskを使わないのは絶対NG。
+→ 送付先ルーム名は下記「取引先ルームマップ」で必ず解決してからpromptに明記すること。マップにない会社は「送付先が未登録です」とreplyして終了。
 → claude_task prompt の書き方:
-"[送信者名]からの指示: [会社名]のLINEグループに[書類種別]を送付してください。\n\n書類情報:\nPDF生成URL: [業務データ内の pdf_url フィールドをそのまま記載]\n書類番号: [doc_number]\n金額: [total]\n\n手順:\n1. python lineworks_send.py --generate-pdf \"[pdf_urlフィールドの値]\" \"C:\\temp\\doc_[id].pdf\"\n2. lineworks-room-map.jsonまたはago_client_mapから[会社名]のroomNameを取得\n3. 取引先向けカバーメッセージをtempファイルに書いてから送信:\n   カバーメッセージ例（書類種別に応じて自然な文章にすること・ID・番号など内部情報は絶対に含めない）:\n   「お世話になっております。株式会社AGOグループでございます。\n   [書類種別]をお送りいたします。\n   ご査収のほど、よろしくお願いいたします。」\n   python lineworks_send.py ルーム名 カバーメッセージ.txt --headless\n4. python lineworks_send.py ルーム名 C:\\temp\\doc_[id].pdf --file --headless\n5. 送信完了後 Remove-Item でtempファイルを削除\n6. 返信先LINE WORKSルーム名: [上記で特定したroomName]  ← 「[会社名]に[書類種別]を送付しました」と完了報告する（内部向け報告・ID等OK）"
+"[送信者名]からの指示: [会社名]のLINEグループに[書類種別]を送付してください。\n\n送付先LINE WORKSルーム名: [取引先ルームマップで解決したルーム名]\n\n書類情報:\nPDF生成URL: [業務データ内の pdf_url フィールドをそのまま記載]\n書類番号: [doc_number]\n金額: [total]\n\n手順:\n1. python lineworks_send.py --generate-pdf \"[pdf_urlフィールドの値]\" \"C:\\temp\\doc_[id].pdf\"\n2. 上記の「送付先LINE WORKSルーム名」をそのまま使う（ルーム検索は不要）\n3. 取引先向けカバーメッセージをtempファイルに書いてから送信:\n   カバーメッセージ例（書類種別に応じて自然な文章にすること・ID・番号など内部情報は絶対に含めない）:\n   「お世話になっております。株式会社AGOグループでございます。\n   [書類種別]をお送りいたします。\n   ご査収のほど、よろしくお願いいたします。」\n   python lineworks_send.py [送付先ルーム名] カバーメッセージ.txt --headless\n4. python lineworks_send.py [送付先ルーム名] C:\\temp\\doc_[id].pdf --file --headless\n5. 送信完了後 Remove-Item でtempファイルを削除\n6. 返信先LINE WORKSルーム名: [送付先と同じルーム名]  ← 「[会社名]に[書類種別]を送付しました」と完了報告する（内部向け報告・ID等OK）"
 
 ### reply の書き方（ファイル操作依頼時）
 「確認しました。作業を開始します。完了したらプッシュ通知でお知らせします📎」
@@ -239,6 +242,9 @@ Claude CodeはそのURLからファイルをダウンロード・処理できる
 
 ## 資材注文データ（進行中のみ）
 {$orders_json}
+
+## 取引先ルームマップ（パターン5専用・会社名→LINE WORKSルーム名）
+{$client_map_json}
 
 ## 案件フェーズ値
 受付=reception / 設計中=designing / 見積中=estimating / 契約中=contracting /
@@ -384,6 +390,25 @@ SYS;
     // JSON の reply が取れなかった場合は生テキストをそのまま使う（Claude が JSON を返さなかった場合の対処）
     $reply_msg = $parsed['reply'] ?? (($raw && trim($raw)) ? trim($raw) : 'すみません、処理できませんでした。もう一度お試しください。');
     $actions   = $parsed['actions'] ?? [];
+
+    // ── actions が空でも作業を示唆する返答の場合は1回リトライ ────────
+    if (empty($actions) && preg_match('/作成します|作ります|Claude.*で|プッシュ通知でお知らせ|実行します|送付します|保存します|ドライブに|対応します/u', $reply_msg)) {
+        wh_log('[RETRY] actions=[] but reply suggests action. Retrying...');
+        $retry_msgs   = $messages;
+        $retry_msgs[] = ['role' => 'assistant', 'content' => $raw];
+        $retry_msgs[] = ['role' => 'user',      'content' => '※ actionsが空でした。claude_taskが必要な作業であれば必ずactionsに{"type":"claude_task","prompt":"..."}を含めてください。'];
+        $raw2   = ai_call($api_key, $system, $retry_msgs, 1500);
+        $clean2 = preg_replace('/^```json\s*|\s*```$/m', '', trim($raw2 ?? ''));
+        preg_match('/\{[\s\S]*\}/u', $clean2, $m2);
+        $parsed2 = json_decode($m2[0] ?? '{}', true);
+        wh_log('[RETRY_ACTIONS] ' . json_encode($parsed2['actions'] ?? [], JSON_UNESCAPED_UNICODE));
+        if (!empty($parsed2['actions'])) {
+            $parsed    = $parsed2;
+            $raw       = $raw2;
+            $reply_msg = $parsed2['reply'] ?? $reply_msg;
+            $actions   = $parsed2['actions'];
+        }
+    }
 
     // ── 7. アクション分類（即実行 vs 確認キュー） ────────────────────
     $CONFIRM_ALWAYS   = ['create_estimate','create_invoice','create_purchase_order','update_phase'];
