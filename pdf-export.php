@@ -31,6 +31,11 @@ function kv_get($key) {
     return kv_fetch_all()[$key] ?? null;
 }
 
+if (($_GET['t'] ?? '') !== 'system002-od') {
+    http_response_code(403);
+    exit('<p style="padding:40px;font-family:sans-serif;color:#888">認証エラー</p>');
+}
+
 $allowed = ['ago_estimates', 'ago_invoices', 'ago_purchase_orders'];
 $key = $_GET['key'] ?? '';
 $id  = $_GET['id']  ?? '';

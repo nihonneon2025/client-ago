@@ -1,10 +1,16 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Origin: https://system002-od.ordermade-neon.com');
+header('Access-Control-Allow-Headers: Content-Type, X-AGO-Token');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
+    exit;
+}
+
+if (($_SERVER['HTTP_X_AGO_TOKEN'] ?? '') !== 'system002-od') {
+    http_response_code(403);
+    echo json_encode(['reply' => '認証エラー']);
     exit;
 }
 

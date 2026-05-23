@@ -2,6 +2,12 @@
 // notify-completed.php — 完了済みタスクへのWebプッシュ自動通知
 // Xserver cron: */3 * * * * php /home/xs520103/system002-od.ordermade-neon.com/public_html/notify-completed.php
 
+// CLI（クロン）はそのまま通過、HTTP経由はトークン必須
+if (php_sapi_name() !== 'cli' && ($_GET['t'] ?? '') !== 'system002-od') {
+    http_response_code(403);
+    exit;
+}
+
 define('BASE_URL', 'https://system002-od.ordermade-neon.com');
 define('API_TOKEN', 'system002-od');
 

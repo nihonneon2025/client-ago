@@ -9775,7 +9775,7 @@ async function sendToAI(projectId, phase, context) {
   try {
     const res = await fetch('ai-handler.php', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json', 'X-AGO-Token': 'system002-od'},
       body: JSON.stringify({ context, proj_info: projInfo, message: msg })
     });
     const data = await res.json();

@@ -77,19 +77,19 @@ function processLineMessage($log_entry, $api_key, $line_token = '') {
         if ($est_docs) $entry['見積書'] = array_map(fn($e) => [
             'no'      => $e['doc_number'] ?? '', 'total' => '¥' . number_format($e['total'] ?? 0),
             'url'     => $base_url . '/print-doc.php?key=ago_estimates&id=' . $e['id'],
-            'pdf_url' => $base_url . '/pdf-export.php?key=ago_estimates&id=' . $e['id'],
+            'pdf_url' => $base_url . '/pdf-export.php?key=ago_estimates&id=' . $e['id'] . '&t=system002-od',
         ], $est_docs);
 
         if ($inv_docs) $entry['請求書'] = array_map(fn($i) => [
             'no'      => $i['doc_number'] ?? '', 'total' => '¥' . number_format($i['total'] ?? 0),
             'url'     => $base_url . '/print-doc.php?key=ago_invoices&id=' . $i['id'],
-            'pdf_url' => $base_url . '/pdf-export.php?key=ago_invoices&id=' . $i['id'],
+            'pdf_url' => $base_url . '/pdf-export.php?key=ago_invoices&id=' . $i['id'] . '&t=system002-od',
         ], $inv_docs);
 
         if ($po_docs)  $entry['発注書'] = array_map(fn($o) => [
             'no'      => $o['doc_number'] ?? '', 'total' => '¥' . number_format($o['total'] ?? 0),
             'url'     => $base_url . '/print-doc.php?key=ago_purchase_orders&id=' . $o['id'],
-            'pdf_url' => $base_url . '/pdf-export.php?key=ago_purchase_orders&id=' . $o['id'],
+            'pdf_url' => $base_url . '/pdf-export.php?key=ago_purchase_orders&id=' . $o['id'] . '&t=system002-od',
         ], $po_docs);
 
         $proj_list[] = $entry;
