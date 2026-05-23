@@ -703,21 +703,34 @@ function execute_action($action, $userId, $users_map, $ts, $line_token = '', $ka
             // AIが「スタッフからの依頼」と書いた場合でも正しい送信者名に強制上書き
             $prompt = preg_replace('/^(スタッフ|担当者|ユーザー)からの[依頼指示]+[:：]\s*/u', '', $prompt);
             $prompt = "{$sender_name}からの指示:\n{$prompt}";
-            $queue_raw = ago_kv_get('ago_claude_queue');
-            $queue = json_decode($queue_raw ?? '[]', true) ?: [];
-            if (!is_array($queue) || isset($queue['id'])) $queue = [];  // 壊れた構造をリセット
-            $queue[] = [
-                'id'             => 'task_' . date('YmdHis') . '_' . substr($userId, -6),
-                'status'         => 'pending',
-                'prompt'         => $prompt,
-                'requester_id'   => $reply_target,
-                'requester_name' => $sender_name,
-                'created_at'     => $ts,
-                'result'         => null,
-                'completed_at'   => null,
-                'log_id'         => $log_id,
-            ];
-            ago_kv_set('ago_claude_queue', json_encode(array_values($queue), JSON_UNESCAPED_UNICODE));
+            // BrainTrust VPS にタスク投入
+            $bt_url    = 'https://api.nihon-neon.jp/api/v1/tasks';
+            $bt_secret = defined('BRAINTRUST_VPS_SECRET') ? BRAINTRUST_VPS_SECRET : 'braintrust2026';
+            $bt_body   = json_encode([
+                'client_id' => 'ago_001',
+                'type'      => 'claude_task',
+                'payload'   => [
+                    'prompt'         => $prompt,
+                    'requester_id'   => $reply_target,
+                    'requester_name' => $sender_name,
+                    'log_id'         => $log_id,
+                ],
+            ]);
+            $ch = curl_init($bt_url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $bt_body,
+                CURLOPT_HTTPHEADER     => [
+                    'Content-Type: application/json',
+                    'X-Daemon-Secret: ' . $bt_secret,
+                ],
+                CURLOPT_TIMEOUT => 15,
+            ]);
+            $bt_res  = curl_exec($ch);
+            $bt_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            wh_log('[BRAINTRUST] claude_task queued code=' . $bt_code . ' res=' . mb_substr($bt_res ?? '', 0, 100));
             break;
 
         case 'confirm_pending_actions':
