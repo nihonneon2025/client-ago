@@ -8,32 +8,30 @@ header('Cache-Control: no-store');
 // ── 設定 ──────────────────────────────────────────────────────────────────
 define('ELVIN_VPS_URL', 'https://api.nihon-neon.jp');
 define('ELVIN_CLIENT_TOKEN', '4507171597d749daa3dd6d1d118122d3');
-define('ELVIN_TIMEOUT', 5); // VPS応答タイムアウト秒
+define('ELVIN_TIMEOUT', 5);
 
-// ── VPS に確認 ─────────────────────────────────────────────────────────────
-$ctx = stream_context_create([
-    'http' => [
-        'method'  => 'GET',
-        'header'  => 'X-Client-Token: ' . ELVIN_CLIENT_TOKEN,
-        'timeout' => ELVIN_TIMEOUT,
-    ],
-    'ssl' => [
-        'verify_peer'      => false,
-        'verify_peer_name' => false,
-    ],
+// ── VPS に確認（curl使用） ────────────────────────────────────────────────
+$url = ELVIN_VPS_URL . '/api/v1/license/check';
+$ch = curl_init($url);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT        => ELVIN_TIMEOUT,
+    CURLOPT_HTTPHEADER     => ['X-Client-Token: ' . ELVIN_CLIENT_TOKEN],
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_SSL_VERIFYHOST => false,
 ]);
-
-$url  = ELVIN_VPS_URL . '/api/v1/license/check';
-$body = @file_get_contents($url, false, $ctx);
+$body = curl_exec($ch);
+$err  = curl_errno($ch);
+curl_close($ch);
 
 // VPS無応答 → フェールオープン（業務を止めない）
-if ($body === false) {
+if ($body === false || $err !== 0) {
     http_response_code(200);
     echo json_encode(['active' => true, 'reason' => 'vps_unreachable'], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-$data = json_decode($body, true);
+$data   = json_decode($body, true);
 $active = $data['active'] ?? false;
 
 if (!$active) {
