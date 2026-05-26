@@ -727,9 +727,9 @@ function execute_action($action, $userId, $users_map, $ts, $line_token = '', $ka
             // AIが「スタッフからの依頼」と書いた場合でも正しい送信者名に強制上書き
             $prompt = preg_replace('/^(スタッフ|担当者|ユーザー)からの[依頼指示]+[:：]\s*/u', '', $prompt);
             $prompt = "{$sender_name}からの指示:\n{$prompt}";
-            // BrainTrust VPS にタスク投入
+            // ELVIN VPS にタスク投入
             $bt_url    = 'https://api.nihon-neon.jp/api/v1/tasks';
-            $bt_secret = defined('BRAINTRUST_VPS_SECRET') ? BRAINTRUST_VPS_SECRET : 'braintrust2026';
+            $bt_secret = defined('ELVIN_VPS_SECRET') ? ELVIN_VPS_SECRET : (defined('BRAINTRUST_VPS_SECRET') ? BRAINTRUST_VPS_SECRET : 'elvin2026');
             $bt_body   = json_encode([
                 'client_id' => 'ago_001',
                 'type'      => 'ELVIN_task',
@@ -754,7 +754,7 @@ function execute_action($action, $userId, $users_map, $ts, $line_token = '', $ka
             $bt_res  = curl_exec($ch);
             $bt_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
-            wh_log('[BRAINTRUST] ELVIN_task queued code=' . $bt_code . ' res=' . mb_substr($bt_res ?? '', 0, 100));
+            wh_log('[ELVIN] ELVIN_task queued code=' . $bt_code . ' res=' . mb_substr($bt_res ?? '', 0, 100));
             break;
 
         case 'confirm_pending_actions':
