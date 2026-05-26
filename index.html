@@ -10,23 +10,31 @@
 </script>
 <script>
 (function(){
+  document.documentElement.style.visibility='hidden';
   fetch('/license-check.php',{cache:'no-store'})
     .then(function(r){return r.json();})
     .then(function(d){
       if(!d.active){
-        document.addEventListener('DOMContentLoaded',function(){
-          var el=document.createElement('div');
-          el.id='elvin-suspended';
-          el.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0f172a;color:#f1f5f9;font-family:sans-serif;text-align:center;gap:16px';
-          el.innerHTML='<div style="font-size:32px;font-weight:800;letter-spacing:4px;color:#94a3b8">ELVIN</div>'
+        var show=function(){
+          document.body.innerHTML='<div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0f172a;color:#f1f5f9;font-family:sans-serif;text-align:center;gap:16px">'
+            +'<div style="font-size:32px;font-weight:800;letter-spacing:4px;color:#94a3b8">ELVIN</div>'
             +'<div style="font-size:15px;color:#ef4444;font-weight:600">ご利用を停止しています</div>'
-            +'<div style="font-size:13px;color:#64748b;max-width:320px">サービスに関するお問い合わせは<br>ご契約窓口までご連絡ください。</div>';
-          document.body.innerHTML='';
-          document.body.appendChild(el);
-        });
+            +'<div style="font-size:13px;color:#64748b;max-width:320px">サービスに関するお問い合わせは<br>ご契約窓口までご連絡ください。</div>'
+            +'</div>';
+          document.documentElement.style.visibility='visible';
+        };
+        if(document.readyState==='loading'){
+          document.addEventListener('DOMContentLoaded',show);
+        } else {
+          show();
+        }
+      } else {
+        document.documentElement.style.visibility='visible';
       }
     })
-    .catch(function(){/* VPS無応答はフェールオープン */});
+    .catch(function(){
+      document.documentElement.style.visibility='visible';
+    });
 })();
 </script>
 <meta charset="UTF-8">
