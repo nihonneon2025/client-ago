@@ -4,7 +4,7 @@
 <head>
 <script>
   (function(){
-    var t=localStorage.getItem('theme')||'dark';
+    var t=localStorage.getItem('theme')||'light';
     document.documentElement.setAttribute('data-theme',t);
   })();
 </script>
@@ -550,6 +550,35 @@ body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!i
 .tab-collapse-btn:hover{color:var(--accent)}
 .tab-nav-wrap{display:flex;align-items:center;border-bottom:1px solid var(--border);overflow:hidden;transition:max-height .25s}
 .tab-nav-wrap.collapsed{max-height:0;border-bottom:none}
+/* ─── Sidebar Layout Redesign ─── */
+:root{--sb-w:204px;--sb-bg:#1a3557;--sb-bdr:rgba(255,255,255,.1);--sb-txt:#8facc6;--sb-act:#245080}
+[data-theme="light"]{--bg:#f1f5f9;--surface:#ffffff;--card:#f8fafc;--border:#e2e8f0;--primary:#4f46e5;--accent:#6366f1;--text:#0f172a;--muted:#64748b;--green:#059669;--yellow:#d97706;--blue:#2563eb;--purple:#7c3aed;--orange:#ea580c;--red:#dc2626;--line-user-bg:#eff6ff;--line-user-border:#bfdbfe;--line-ai-bg:#f0fdf4;--line-ai-text:#0f172a}
+#sidebar-nav{position:fixed;top:0;left:0;width:var(--sb-w);height:100vh;background:var(--sb-bg);display:flex;flex-direction:column;z-index:110;overflow-y:auto;overflow-x:hidden}
+.sb-logo{padding:16px;border-bottom:1px solid var(--sb-bdr);cursor:pointer;user-select:none}
+.sb-logo-a{font-size:22px;font-weight:900;color:#fff;letter-spacing:2px}
+.sb-logo-b{font-size:9px;font-weight:600;color:var(--sb-txt);letter-spacing:1.5px;margin-top:3px}
+.sb-nav{padding:8px 0;flex:1}
+.sb-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;border-left:3px solid transparent;color:var(--sb-txt);font-size:13px;font-weight:500;cursor:pointer;text-align:left;transition:all .15s;white-space:nowrap}
+.sb-item:hover{background:rgba(255,255,255,.07);color:#cde}
+.sb-item.active{background:var(--sb-act);color:#fff;border-left-color:#4da6ff}
+.sb-item svg{width:17px;height:17px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sb-item:not(.active){opacity:.9}
+.sb-item.active{opacity:1}
+header{margin-left:var(--sb-w)}
+#main-wrap{margin-left:var(--sb-w)}
+.logo{display:none}
+#tab-nav-outer{display:none!important}
+#sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:109}
+#sb-toggle{display:none;position:fixed;top:11px;left:11px;z-index:200;background:var(--sb-bg);border:none;border-radius:8px;color:#fff;width:36px;height:36px;font-size:19px;cursor:pointer;align-items:center;justify-content:center;line-height:1}
+@media(max-width:767px){
+  #sidebar-nav{transform:translateX(-100%);transition:transform .25s}
+  #sidebar-nav.open{transform:translateX(0)}
+  #sb-overlay.open{display:block}
+  #sb-toggle{display:flex}
+  header{margin-left:0;padding-left:54px}
+  #main-wrap{margin-left:0}
+  .logo{display:flex}
+}
 </style>
 </head>
 <body>
@@ -571,6 +600,28 @@ body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!i
   </div>
 </header>
 
+<!-- Sidebar Navigation -->
+<nav id="sidebar-nav">
+  <div class="sb-logo" onclick="onLogoTap()">
+    <div class="sb-logo-a">AGO</div>
+    <div class="sb-logo-b">SYSTEM MANAGER</div>
+  </div>
+  <div class="sb-nav">
+    <button class="sb-item active" data-tab="projects" onclick="switchTab('projects')"><svg viewBox="0 0 24 24"><rect x="3" y="10" width="18" height="11" rx="2"/><path d="M3 10l9-7 9 7"/></svg><span>案件管理</span></button>
+    <button class="sb-item" data-tab="accounting" onclick="switchTab('accounting')"><svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/><path d="M9 14l2 2 4-4"/></svg><span>経理</span></button>
+    <button class="sb-item" data-tab="schedule" onclick="switchTab('schedule')"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h4M8 18h8"/></svg><span>工程</span></button>
+    <button class="sb-item" data-tab="orders" onclick="switchTab('orders')"><svg viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg><span>資材注文</span></button>
+    <button class="sb-item" data-tab="attendance" onclick="switchTab('attendance')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>勤怠</span></button>
+    <button class="sb-item" data-tab="monthly" onclick="switchTab('monthly')"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-8"/></svg><span>月別収支</span></button>
+    <button class="sb-item" data-tab="customers" onclick="switchTab('customers')"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg><span>コンタクト</span></button>
+    <button class="sb-item" data-tab="instructions" onclick="switchTab('instructions')"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg><span>指示</span></button>
+    <button class="sb-item" data-tab="line" onclick="switchTab('line')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span>LINE</span></button>
+  </div>
+</nav>
+<div id="sb-overlay" onclick="document.getElementById('sidebar-nav').classList.remove('open');this.classList.remove('open')"></div>
+<button id="sb-toggle" onclick="document.getElementById('sidebar-nav').classList.toggle('open');document.getElementById('sb-overlay').classList.toggle('open')">☰</button>
+
+<div id="main-wrap">
 <!-- Master Control Panel -->
 <div class="master-panel" id="master-panel">
   <div class="master-panel-title">🔐 マスター機能制御</div>
@@ -647,7 +698,7 @@ body.col-resizing,.col-resizing *{cursor:col-resize!important;user-select:none!i
 </div>
 
 <!-- Tab Navigation -->
-<div style="display:flex;align-items:center;border-bottom:1px solid var(--border);background:var(--surface)">
+<div id="tab-nav-outer" style="display:flex;align-items:center;border-bottom:1px solid var(--border);background:var(--surface)">
   <button class="tab-collapse-btn" id="tab-collapse-btn" onclick="toggleTabNav()" title="タブを折りたたむ">☰</button>
   <div class="tab-nav" id="tab-nav-inner" style="flex:1;overflow-x:auto;border-bottom:none;white-space:nowrap">
     <button class="tab-btn active" id="tab-projects" onclick="switchTab('projects')">🏗 <span id="tab-projects-lbl">案件管理</span></button>
@@ -1778,5 +1829,33 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     </div>
   </div>
 </div>
+</div><!-- /main-wrap -->
+<script>
+// Sidebar active state sync
+(function(){
+  var _orig=typeof switchTab==='function'?switchTab:null;
+  window.switchTab=function(n){
+    if(_orig)_orig(n);
+    document.querySelectorAll('.sb-item').forEach(function(e){e.classList.remove('active')});
+    var s=document.querySelector('.sb-item[data-tab="'+n+'"]');
+    if(s)s.classList.add('active');
+  };
+  // Sync master-badge to sidebar logo area
+  var mb=document.getElementById('master-badge');
+  if(mb){
+    new MutationObserver(function(){
+      var sbl=document.querySelector('.sb-logo-b');
+      if(!sbl)return;
+      if(mb.classList.contains('visible')){
+        sbl.style.color='#f87171';
+        sbl.textContent='[MASTER]';
+      }else{
+        sbl.style.color='';
+        sbl.textContent='SYSTEM MANAGER';
+      }
+    }).observe(mb,{attributes:true});
+  }
+})();
+</script>
 </body>
 </html>
