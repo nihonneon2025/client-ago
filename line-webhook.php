@@ -346,7 +346,7 @@ if (!empty($deferred)) {
                 ? 'ファイル名: ' . $filename . "\nダウンロードURL: " . $file_url
                 : '（ファイル情報なし）';
 
-            $prompt = "{$sender}からの依頼: 「PDFにして」\n\n"
+            $prompt = "{$sender}からの依頼: 「{$raw_text}」\n\n"
                 . "## 対象ファイル\n{$file_info}\n\n"
                 . "## 実行手順\n"
                 . "1. まず `C:\\Users\\Administrator\\Desktop\\AI版AGO\\` 配下で `{$filename}` を探す\n"
@@ -355,9 +355,10 @@ if (!empty($deferred)) {
                 . "4. ファイル拡張子を確認:\n"
                 . "   - `.pdf` の場合: そのまま送付\n"
                 . "   - `.txt` の場合: wkhtmltopdf または LibreOffice で変換。どちらもなければ Pythonのfpdfで変換\n"
-                . "5. `python lineworks_send.py \"AI事業\" 対象ファイルパス --file --headless` でAI事業グループに送付\n"
-                . "6. 送付完了後: `完了: PDFを送付しました [FILE:対象ファイルパス]` と出力する\n"
-                . "7. tempファイルがあれば削除\n";
+                . "5. 依頼に「フォルダに入れて」「保存して」等が含まれる場合 → デスクトップ（`C:\\Users\\Administrator\\Desktop\\`）配下の該当フォルダにPDFをコピーする\n"
+                . "6. `python lineworks_send.py \"AI事業\" 対象ファイルパス --file --headless` でAI事業グループに送付\n"
+                . "7. 送付完了後: `完了: [実施内容の1行説明] [FILE:対象ファイルパス]` と出力する\n"
+                . "8. tempファイルがあれば削除\n";
 
             // ELVIN VPS に直接投入
             $bt_secret = defined('ELVIN_VPS_SECRET') ? ELVIN_VPS_SECRET : 'elvin2026';
