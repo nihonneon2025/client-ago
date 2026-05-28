@@ -306,6 +306,8 @@ if (!empty($deferred)) {
                 if (!is_array($fd) || empty($fd['url'])) continue;
                 // 同じユーザーが送ったファイルのみ（グループ内の他人のファイルは除外）
                 if (($fd['userId'] ?? null) !== $uid) continue;
+                // 画像は除外（引用なしの「PDFにして」はドキュメント系が対象。画像をPDFにするには引用してから送ること）
+                if (($fd['type'] ?? '') === 'image') continue;
                 $hits[] = $fd;
             }
             usort($hits, fn($a, $b) => ($b['ts'] ?? 0) - ($a['ts'] ?? 0));
@@ -318,17 +320,18 @@ if (!empty($deferred)) {
             $filename = $hits[0]['filename'] ?? '';
             $file_url = $hits[0]['url'] ?? '';
 
-            $prompt = "{$sender}からの依頼: 「PDFにして」\n\n"
+            $prompt = "##NODISPATCH##\n"
+                . "{$sender}からの依頼: 「PDFにして」\n\n"
                 . "## 対象ファイル\n{$file_info}\n\n"
-                . "## 実行手順\n"
-                . "1. まず `C:\\Users\\Administrator\\Desktop\\AI◆◆AGO\\` 配下で `{$filename}` を探す\n"
-                . "2. 見つかった場合 → 手順3へ\n"
-                . "3. 見つからない場合 → 上記URLからファイルをダウンロード: `Invoke-WebRequest '{$file_url}' -OutFile 'C:\\temp\\{$filename}'`\n"
+                . "## 実行手順（DISPATCHは禁止。あなた自身がBashで直接実行してください）\n"
+                . "1. まず `C:\\Users\\Administrator\\Desktop\\AI版AGO\\` 配下で `{$filename}` を探す\n"
+                . "2. 見つかった場合 → そのファイルを使用\n"
+                . "3. 見つからない場合 → URLからダウンロード: `Invoke-WebRequest '{$file_url}' -OutFile 'C:\\temp\\{$filename}'`\n"
                 . "4. ファイル拡張子を確認:\n"
-                . "   - `.pdf` の場合: そのまま送付（generate_pdfは使わない）\n"
-                . "   - `.txt` / `.doc` 等の場合: ワードパッドでPDF印刷 or LibreOffice変換\n"
+                . "   - `.pdf` の場合: そのまま送付\n"
+                . "   - `.txt` の場合: wkhtmltopdf または LibreOffice で変換。どちらもなければ Pythonのfpdfで変換\n"
                 . "5. `python lineworks_send.py \"AI事業\" 対象ファイルパス --file --headless` でAI事業グループに送付\n"
-                . "6. 完了したら `notify-completed` でLINEに結果を返す\n"
+                . "6. 送付完了後: `完了: PDFを送付しました [FILE:対象ファイルパス]` と出力する\n"
                 . "7. tempファイルがあれば削除\n";
 
             // ELVIN VPS に直接投入
