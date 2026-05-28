@@ -201,6 +201,17 @@ Claude CodeはそのURLからファイルをダウンロード・処理できる
 → ELVIN_task prompt の書き方:
 "[送信者名]からの指示: [会社名]のLINEグループに[書類種別]を送付してください。\n\n送付先LINE WORKSルーム名: [取引先ルームマップで解決したルーム名]\n\n書類情報:\nPDF生成URL: [業務データ内の pdf_url フィールドをそのまま記載]\n書類番号: [doc_number]\n金額: [total]\n\n手順:\n1. python lineworks_send.py --generate-pdf \"[pdf_urlフィールドの値]\" \"C:\\temp\\doc_[id].pdf\"\n2. 上記の「送付先LINE WORKSルーム名」をそのまま使う（ルーム検索は不要）\n3. 取引先向けカバーメッセージをtempファイルに書いてから送信:\n   カバーメッセージ例（書類種別に応じて自然な文章にすること・ID・番号など内部情報は絶対に含めない）:\n   「お世話になっております。株式会社AGOグループでございます。\n   [書類種別]をお送りいたします。\n   ご査収のほど、よろしくお願いいたします。」\n   python lineworks_send.py [送付先ルーム名] カバーメッセージ.txt --headless\n4. python lineworks_send.py [送付先ルーム名] C:\\temp\\doc_[id].pdf --file --headless\n5. 送信完了後 Remove-Item でtempファイルを削除\n6. 全て完了したら以下のテキストをターミナルに出力するだけ（lineworks_sendは不要）:\n   「[会社名]に[書類種別]を送付しました」\n   ※agent_local.pyが依頼者のLINE WORKSルームへ自動転送する"
 
+### パターン6: デスクトップファイルをPDFに変換してLINE WORKSに送付
+指示例: 「ウルバンPDFにして」「PDFにして」「さっきのをPDFに」（引用メッセージがあるか、直前の作業でファイルが作られた場合）
+→ 謝罪・確認返答は**絶対禁止**。必ずELVIN_taskを作成する。
+→ ELVIN_task prompt の書き方:
+"[送信者名]からの指示: 直近に作成したファイル（[引用ファイル名があれば記載]）をPDFに変換してAI事業グループに送ってください。"
+→ reply: 「確認しました。PDFに変換してお送りします📄」
+
+### ★追加禁止事項★
+「申し訳ございません」「対象が明確でないため」等の謝罪・確認返答を「PDFにして」「送って」等の作業依頼に対して返すことは絶対禁止。
+デスクトップ作業はELVIN_taskで必ず実行する。ファイルパスが不明でも、ELVIN_taskのpromptにファイル名と指示を書けば担当AIが見つけて処理する。
+
 ### reply の書き方（ファイル操作依頼時）
 「確認しました。作業を開始します。完了したらプッシュ通知でお知らせします📎」
 
@@ -730,6 +741,23 @@ function execute_action($action, $userId, $users_map, $ts, $line_token = '', $ka
             // ELVIN VPS にタスク投入
             $bt_url    = 'https://api.nihon-neon.jp/api/v1/tasks';
             $bt_secret = defined('ELVIN_VPS_SECRET') ? ELVIN_VPS_SECRET : (defined('BRAINTRUST_VPS_SECRET') ? BRAINTRUST_VPS_SECRET : 'elvin2026');
+            // 直近のELVIN task結果をrecent_contextとして取得
+            $recent_context = '';
+            $rc_ch = curl_init('https://api.nihon-neon.jp/api/v1/tasks/recent?client_id=ago_001&limit=1');
+            curl_setopt_array($rc_ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER     => ['X-Daemon-Secret: ' . $bt_secret],
+                CURLOPT_TIMEOUT        => 5,
+            ]);
+            $rc_res = curl_exec($rc_ch);
+            curl_close($rc_ch);
+            if ($rc_res) {
+                $rc_data = json_decode($rc_res, true);
+                if (!empty($rc_data[0]['result'])) {
+                    $rc_result = json_decode($rc_data[0]['result'], true);
+                    $recent_context = $rc_result['output'] ?? '';
+                }
+            }
             $bt_body   = json_encode([
                 'client_id' => 'ago_001',
                 'type'      => 'ELVIN_task',
@@ -738,6 +766,7 @@ function execute_action($action, $userId, $users_map, $ts, $line_token = '', $ka
                     'requester_id'   => $reply_target,
                     'requester_name' => $sender_name,
                     'log_id'         => $log_id,
+                    'recent_context' => $recent_context,
                 ],
             ]);
             $ch = curl_init($bt_url);
