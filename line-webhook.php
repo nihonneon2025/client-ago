@@ -294,31 +294,40 @@ if (!empty($deferred)) {
 
         // ── 「PDFにして」PHP直接処理（AIを通さず確実に実行） ──────────
         $raw_text = $entry['text'] ?? '';
-        if (preg_match('/PDFにして|PDFに変換|PDF.*にして/u', $raw_text) && empty($entry['quoted_text'])) {
+        if (preg_match('/PDFにして|PDFに変換|PDF.*にして/u', $raw_text)) {
             wh_log('[PDF_SHORTCUT] detected PDF pattern, bypassing AI');
 
-            // 直近ファイルをキャッシュから取得
-            $fc      = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
             $gid     = $entry['groupId'] ?? null;
             $uid     = $entry['userId']  ?? '';
-            $hits    = [];
-            foreach ($fc as $fid => $fd) {
-                if (!is_array($fd) || empty($fd['url'])) continue;
-                // 同じユーザーが送ったファイルのみ（グループ内の他人のファイルは除外）
-                if (($fd['userId'] ?? null) !== $uid) continue;
-                // 画像は除外（引用なしの「PDFにして」はドキュメント系が対象。画像をPDFにするには引用してから送ること）
-                if (($fd['type'] ?? '') === 'image') continue;
-                $hits[] = $fd;
-            }
-            usort($hits, fn($a, $b) => ($b['ts'] ?? 0) - ($a['ts'] ?? 0));
+            $users_m = json_decode(ago_kv_get('ago_line_users') ?? '{}', true) ?: [];
+            $sender  = $users_m[$uid] ?? ('スタッフ(' . substr($uid, -6) . ')');
 
-            $users_m  = json_decode(ago_kv_get('ago_line_users') ?? '{}', true) ?: [];
-            $sender   = $users_m[$uid] ?? ('スタッフ(' . substr($uid, -6) . ')');
-            $file_info = !empty($hits[0])
-                ? 'ファイル名: ' . ($hits[0]['filename'] ?? 'file') . "\nダウンロードURL: " . $hits[0]['url']
+            // 引用ファイルがある場合 → それを最優先で使う
+            $filename = '';
+            $file_url = '';
+            $quoted = $entry['quoted_text'] ?? '';
+            if ($quoted && preg_match('/\[ファイル:(\S+)\s+URL:([^\]]+)\]/', $quoted, $qm)) {
+                $filename = $qm[1];
+                $file_url = trim($qm[2]);
+                wh_log('[PDF_SHORTCUT] using quoted file: ' . $filename);
+            } else {
+                // 引用なし → キャッシュから直近ドキュメントを取得（画像除外）
+                $fc   = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
+                $hits = [];
+                foreach ($fc as $fid => $fd) {
+                    if (!is_array($fd) || empty($fd['url'])) continue;
+                    if (($fd['userId'] ?? null) !== $uid) continue;
+                    if (($fd['type'] ?? '') === 'image') continue;
+                    $hits[] = $fd;
+                }
+                usort($hits, fn($a, $b) => ($b['ts'] ?? 0) - ($a['ts'] ?? 0));
+                $filename = $hits[0]['filename'] ?? '';
+                $file_url = $hits[0]['url'] ?? '';
+            }
+
+            $file_info = $filename
+                ? 'ファイル名: ' . $filename . "\nダウンロードURL: " . $file_url
                 : '（ファイル情報なし）';
-            $filename = $hits[0]['filename'] ?? '';
-            $file_url = $hits[0]['url'] ?? '';
 
             $prompt = "##NODISPATCH##\n"
                 . "{$sender}からの依頼: 「PDFにして」\n\n"
