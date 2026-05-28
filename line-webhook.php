@@ -131,8 +131,8 @@ foreach ($events as $event) {
                 $quoted_text = '[ファイル:' . $fname . ' URL:' . $url . ']';
                 wh_log('[QUOTE_DL] type=' . $qtype . ' url=' . $url);
             } else {
-                $quoted_text = '[ファイル:' . $fname . ' (ダウンロード失敗)]';
-                wh_log('[QUOTE_DL] FAIL type=' . $qtype . ' id=' . $quoted_id);
+                // ダウンロード失敗時は$quoted_textをセットしない → ③キャッシュ検索に進む
+                wh_log('[QUOTE_DL] FAIL type=' . $qtype . ' id=' . $quoted_id . ' → trying cache');
             }
         }
 
@@ -329,10 +329,9 @@ if (!empty($deferred)) {
                 ? 'ファイル名: ' . $filename . "\nダウンロードURL: " . $file_url
                 : '（ファイル情報なし）';
 
-            $prompt = "##NODISPATCH##\n"
-                . "{$sender}からの依頼: 「PDFにして」\n\n"
+            $prompt = "{$sender}からの依頼: 「PDFにして」\n\n"
                 . "## 対象ファイル\n{$file_info}\n\n"
-                . "## 実行手順（DISPATCHは禁止。あなた自身がBashで直接実行してください）\n"
+                . "## 実行手順\n"
                 . "1. まず `C:\\Users\\Administrator\\Desktop\\AI版AGO\\` 配下で `{$filename}` を探す\n"
                 . "2. 見つかった場合 → そのファイルを使用\n"
                 . "3. 見つからない場合 → URLからダウンロード: `Invoke-WebRequest '{$file_url}' -OutFile 'C:\\temp\\{$filename}'`\n"
@@ -347,6 +346,7 @@ if (!empty($deferred)) {
             $bt_secret = defined('ELVIN_VPS_SECRET') ? ELVIN_VPS_SECRET : 'elvin2026';
             $bt_body   = json_encode([
                 'client_id' => 'ago_001',
+                'agent_id'  => 'ago_001_b6ee06c9',
                 'type'      => 'ELVIN_task',
                 'payload'   => [
                     'prompt'         => $prompt,
