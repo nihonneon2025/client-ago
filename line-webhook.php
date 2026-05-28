@@ -1,13 +1,18 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
 
+// OPcacheが古いline-handler.phpを使い続けないようにする
+if (function_exists('opcache_invalidate')) {
+    opcache_invalidate(__DIR__ . '/line-handler.php', true);
+}
+
 // ファイルベースのデバッグログ（api.php不要・サーバー上のwh_debug.logに書き込む）
 function wh_log($msg) {
     $line = date('Y-m-d H:i:s') . ' ' . $msg . "\n";
     @file_put_contents(__DIR__ . '/wh_debug.log', $line, FILE_APPEND | LOCK_EX);
 }
 
-wh_log('[START] webhook called');
+wh_log('[START] webhook called v20260528-1500');
 
 // APIキー・LINEトークンはapi-config.phpから取得
 $api_key             = '';
@@ -83,6 +88,25 @@ foreach ($events as $event) {
     $groupId    = $event['source']['groupId'] ?? null;
     $source     = $groupId ? 'group' : 'direct';
     $replyToken = $event['replyToken'] ?? null;
+
+    // 直近ファイルのコンテキスト自動注入（引用なしで「PDFにして」等を言った場合）
+    // 同じグループ内で5分以内に送られたファイルをAIに見せる
+    if (!empty($event['message']['quotedMessageId']) === false && preg_match('/PDF|変換|ドライブ|送って|保存|印刷/u', $text)) {
+        $f_cache = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
+        $cutoff  = time() - 300;
+        $inject  = [];
+        foreach ($f_cache as $fid => $fdata) {
+            if (!is_array($fdata)) continue;
+            $same_ctx = $groupId ? (($fdata['groupId'] ?? null) === $groupId) : (($fdata['userId'] ?? null) === $userId);
+            if ($same_ctx && ($fdata['ts'] ?? 0) >= $cutoff) {
+                $inject[] = '[直近ファイル: ' . ($fdata['filename'] ?? 'file') . ' URL: ' . ($fdata['url'] ?? '') . ']';
+            }
+        }
+        if ($inject) {
+            $text .= "\n\n【直近のファイル（引用なし）】\n" . implode("\n", $inject);
+            wh_log('[CTX_INJECT] added ' . count($inject) . ' recent file(s) to text');
+        }
+    }
 
     // リプライ（引用）メッセージの内容を取得
     $quoted_text = null;
