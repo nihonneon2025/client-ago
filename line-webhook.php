@@ -123,27 +123,44 @@ foreach ($events as $event) {
         }
 
         // ② ファイル・画像・動画の引用 → その場で即ダウンロード
-        if (!$quoted_text && !empty($q['type']) && in_array($q['type'], ['file', 'image', 'video']) && $LINE_CHANNEL_TOKEN) {
-            $qtype = $q['type'];
-            $fname = $q['fileName'] ?? ($qtype === 'image' ? $quoted_id . '.jpg' : $quoted_id . '.bin');
-            $url   = save_line_file($quoted_id, $LINE_CHANNEL_TOKEN, $fname);
-            if ($url) {
-                $quoted_text = '[ファイル:' . $fname . ' URL:' . $url . ']';
-                wh_log('[QUOTE_DL] type=' . $qtype . ' url=' . $url);
-            } else {
-                // ダウンロード失敗時は$quoted_textをセットしない → ③キャッシュ検索に進む
-                wh_log('[QUOTE_DL] FAIL type=' . $qtype . ' id=' . $quoted_id . ' → trying cache');
+        $fname = null;
+        if (!$quoted_text && $LINE_CHANNEL_TOKEN) {
+            $q_fname = $q['fileName'] ?? null;
+            $q_type  = $q['type'] ?? '';
+            if ($q_fname || in_array($q_type, ['file', 'image', 'video'])) {
+                $fname = $q_fname ?? ($q_type === 'image' ? $quoted_id . '.jpg' : $quoted_id . '.bin');
+                $url   = save_line_file($quoted_id, $LINE_CHANNEL_TOKEN, $fname);
+                if ($url) {
+                    $quoted_text = '[ファイル:' . $fname . ' URL:' . $url . ']';
+                    wh_log('[QUOTE_DL] type=' . $q_type . ' url=' . $url);
+                } else {
+                    wh_log('[QUOTE_DL] FAIL type=' . $q_type . ' fname=' . $fname . ' → trying cache');
+                }
             }
         }
 
         // ③ キャッシュから照合（フォールバック）
         if (!$quoted_text) {
             $msg_cache = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
+            // ③-A: メッセージIDで照合
             $cached = $msg_cache[$quoted_id] ?? null;
             if (is_array($cached) && isset($cached['url'])) {
                 $quoted_text = '[ファイル:' . ($cached['filename'] ?? 'file') . ' URL:' . $cached['url'] . ']';
+                wh_log('[QUOTE] cache hit by id: ' . ($cached['filename'] ?? '?'));
             } elseif (is_string($cached)) {
                 $quoted_text = $cached;
+            }
+            // ③-B: ファイル名で照合（IDが合わない場合のフォールバック）
+            if (!$quoted_text && $fname) {
+                foreach ($msg_cache as $_fid => $_fd) {
+                    if (is_array($_fd) && isset($_fd['url'])
+                        && ($_fd['type'] ?? '') !== 'image'
+                        && ($_fd['filename'] ?? '') === $fname) {
+                        $quoted_text = '[ファイル:' . $fname . ' URL:' . $_fd['url'] . ']';
+                        wh_log('[QUOTE] cache hit by filename: ' . $fname);
+                        break;
+                    }
+                }
             }
         }
 
