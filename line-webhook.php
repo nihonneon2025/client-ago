@@ -304,8 +304,9 @@ if (!empty($deferred)) {
             $hits    = [];
             foreach ($fc as $fid => $fd) {
                 if (!is_array($fd) || empty($fd['url'])) continue;
-                $ctx = $gid ? (($fd['groupId'] ?? null) === $gid) : (($fd['userId'] ?? null) === $uid);
-                if ($ctx) $hits[] = $fd;
+                // 同じユーザーが送ったファイルのみ（グループ内の他人のファイルは除外）
+                if (($fd['userId'] ?? null) !== $uid) continue;
+                $hits[] = $fd;
             }
             usort($hits, fn($a, $b) => ($b['ts'] ?? 0) - ($a['ts'] ?? 0));
 
