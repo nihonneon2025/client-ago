@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>client-ago システム設計書</title>
+<style>
+  body { font-family: 'Meiryo', sans-serif; max-width: 960px; margin: 0 auto; padding: 24px; color: #222; background: #fafafa; }
+  h1 { background: #1a3557; color: #fff; padding: 16px 20px; border-radius: 6px; font-size: 1.4em; }
+  h2 { border-left: 5px solid #1a3557; padding-left: 12px; margin-top: 40px; color: #1a3557; }
+  h3 { color: #2c5f8a; margin-top: 24px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th { background: #1a3557; color: #fff; padding: 8px 12px; text-align: left; }
+  td { padding: 8px 12px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  tr:nth-child(even) td { background: #f4f7fb; }
+  code { background: #eef2f7; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em; }
+  pre { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 0.85em; line-height: 1.6; }
+  .warn { background: #fff3cd; border-left: 4px solid #f0a500; padding: 10px 14px; margin: 12px 0; border-radius: 0 4px 4px 0; }
+  .info { background: #d6eaf8; border-left: 4px solid #2980b9; padding: 10px 14px; margin: 12px 0; border-radius: 0 4px 4px 0; }
+  .ok { background: #d5f5e3; border-left: 4px solid #27ae60; padding: 10px 14px; margin: 12px 0; border-radius: 0 4px 4px 0; }
+  ul li { margin: 4px 0; }
+  .tag { display: inline-block; background: #1a3557; color: #fff; font-size: 0.75em; padding: 1px 8px; border-radius: 10px; margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<h1>client-ago システム設計書</h1>
+<p>最終更新: 2026-05-28　／　対象リポジトリ: <code>nihonneon2025/client-ago</code></p>
+
+<div class="info">この設計書はセッションをまたいでAIが構造を把握し直す時間を節約するために作成。修正時は必ずここも更新する。</div>
+
+<!-- ===== 1. 全体構成 ===== -->
+<h2>1. 全体アーキテクチャ</h2>
+<pre>
+【受信フロー】
+  公式LINE（ユーザー）
+    ↓ Webhook（POST）
+  Xserver: system002-od.ordermade-neon.com/line-webhook.php
+    ↓ require_once
+  line-handler.php  ← AIロジック本体（Claude Haiku）
+    ↓ actions に ELVIN_task が含まれる場合
+  ELVIN VPS API（api.nihon-neon.jp）にタスク投入
+
+【送信フロー（完了通知）】
+  AGO事務所PC: agent_local.py（デーモン）
+    ↓ VPSからタスク取得→実行
+  lineworks_send.py
+    ↓ LINE WORKSグループへPlaylwright送信
+  ユーザーのLINE WORKS
+</pre>
+
+<!-- ===== 2. ファイル構成 ===== -->
+<h2>2. 重要ファイル一覧</h2>
+<table>
+  <tr><th>ファイル</th><th>役割</th><th>備考</th></tr>
+  <tr><td><code>line-webhook.php</code></td><td>LINEからのWebhook受信・振り分け</td><td>エントリーポイント。ファイルキャッシュ・引用解決もここ</td></tr>
+  <tr><td><code>line-handler.php</code></td><td>AI（Claude Haiku）呼び出し・アクション実行</td><td>システムプロンプト・パターン定義・execute_action全部ここ</td></tr>
+  <tr><td><code>line-alert.php</code></td><td>朝夕の自動通知（案件アラート）</td><td>cronで定期実行</td></tr>
+  <tr><td><code>notify-completed.php</code></td><td>ELVIN_task完了後のLINE通知受信</td><td>agent_local.py から叩かれる</td></tr>
+  <tr><td><code>api-config.php</code></td><td>APIキー・LINEトークン等の機密設定</td><td><strong>Gitに含まれない・サーバー上のみ</strong></td></tr>
+  <tr><td><code>chat.php</code></td><td>管理者用チャット画面（ブラウザUI）</td><td>PCから確認用</td></tr>
+  <tr><td><code>subscribe.php</code></td><td>Web Push通知の配信</td><td>完了通知をPCブラウザへ</td></tr>
+  <tr><td><code>.github/workflows/deploy.yml</code></td><td>GitHub Actions → Xserver FTP自動デプロイ</td><td>mainブランチpushで発火</td></tr>
+</table>
+
+<!-- ===== 3. デプロイ構成 ===== -->
+<h2>3. デプロイ構成（2026-05-28 確定）</h2>
+<table>
+  <tr><th>項目</th><th>値</th></tr>
+  <tr><td>GitHub リポジトリ</td><td><code>nihonneon2025/client-ago</code></td></tr>
+  <tr><td>デプロイ先サーバー</td><td><code>sv16712.xserver.jp</code>（FTPSで接続）</td></tr>
+  <tr><td>FTPユーザー</td><td><code>ago-deploy@system002-od.ordermade-neon.com</code></td></tr>
+  <tr><td>FTP接続先ディレクトリ</td><td><code>/home/nihonneon/ordermade-neon.com/public_html/system002-od/</code></td></tr>
+  <tr><td>公開URL</td><td><code>https://system002-od.ordermade-neon.com/</code></td></tr>
+  <tr><td>同期状態ファイル名</td><td><code>.ftp-deploy-sync-state.client-ago-sync.json</code>（server上）</td></tr>
+  <tr><td>Secrets 設定箇所</td><td>GitHub → nihonneon2025/client-ago → Settings → Secrets</td></tr>
+</table>
+
+<div class="warn">
+  <strong>ハマりポイント①</strong>：旧リポジトリ（ago-system-manager）の同期状態ファイルが残っているとデプロイが「差分なし」と判定してファイルをスキップする。
+  <code>state-name: client-ago-sync</code> を deploy.yml に指定することで新しい同期ファイルを使うようにした。
+</div>
+<div class="warn">
+  <strong>ハマりポイント②</strong>：XserverのOPcacheがPHPファイルをキャッシュするため、FTP上書き直後は古いコードが動き続けることがある。
+  <code>line-webhook.php</code> の先頭で <code>opcache_invalidate(__DIR__ . '/line-handler.php', true)</code> を毎回呼ぶことで解消。
+</div>
+
+<!-- ===== 4. KVストア キー一覧 ===== -->
+<h2>4. KVストア（ago_kv）主要キー</h2>
+<table>
+  <tr><th>キー名</th><th>内容</th><th>更新タイミング</th></tr>
+  <tr><td><code>ago_line_msg_cache</code></td><td>LINEで送受信したファイル・画像のID→URL・ファイル名・ts・groupId・userId マップ</td><td>ファイルイベント受信時（line-webhook.php）・AI返信送信時（line-handler.php）</td></tr>
+  <tr><td><code>ago_line_conv_{userId}</code></td><td>ユーザーごとの会話履歴（最新10往復=20件）</td><td>メッセージ処理のたびに更新</td></tr>
+  <tr><td><code>ago_line_users</code></td><td>LINEユーザーID → 名前マップ</td><td>register_nameアクション時</td></tr>
+  <tr><td><code>ago_line_groups</code></td><td>グループID → グループ名マップ</td><td>グループ名取得時</td></tr>
+  <tr><td><code>ago_line_group_icons</code></td><td>グループID → アイコンURLマップ</td><td>グループ情報取得時</td></tr>
+  <tr><td><code>ago_projects</code></td><td>案件一覧</td><td>create_project / update_phase 時</td></tr>
+  <tr><td><code>ago_estimates</code></td><td>見積書一覧</td><td>create_estimate 時</td></tr>
+  <tr><td><code>ago_invoices</code></td><td>請求書一覧</td><td>create_invoice 時</td></tr>
+  <tr><td><code>ago_purchase_orders</code></td><td>発注書一覧</td><td>create_purchase_order 時</td></tr>
+  <tr><td><code>ago_orders</code></td><td>資材注文一覧</td><td>update_order_status 時</td></tr>
+  <tr><td><code>ago_pending_actions</code></td><td>菅野社長の承認待ちアクションキュー</td><td>確認フロー発生時・confirm_pending_actions 時</td></tr>
+  <tr><td><code>ago_kanno_schedule</code></td><td>菅野社長のスケジュール</td><td>set_schedule / clear_schedule 時</td></tr>
+  <tr><td><code>ago_pending_notify_{groupId/userId}</code></td><td>ELVIN_task完了後の通知テキスト（次のメッセージで返す）</td><td>notify-completed.php から書き込み</td></tr>
+  <tr><td><code>ago_ai_learning_line</code></td><td>AIの学習データ（承認/却下の回数）</td><td>confirm_pending_actions 時</td></tr>
+  <tr><td><code>ago_client_map</code></td><td>取引先名 → LINE WORKSルーム名マップ（パターン5用）</td><td>手動設定</td></tr>
+  <tr><td><code>ago_line_allowed_users</code></td><td>許可ユーザーIDリスト（空=全員許可）</td><td>手動設定</td></tr>
+</table>
+
+<!-- ===== 5. line-webhook.php の処理フロー ===== -->
+<h2>5. line-webhook.php の処理フロー</h2>
+<pre>
+1. OPcacheクリア（line-handler.php を強制リロード）
+2. api-config.php 読み込み（APIキー・LINEトークン）
+3. Webhookボディ受信・署名検証
+4. events ループ:
+   a. ファイル/画像イベント → save_line_file() でサーバーに保存 → ago_line_msg_cache に格納 → continue
+   b. テキスト以外 → continue
+   c. テキストイベント:
+      i.  「PDFにして」「変換」「ドライブ」等のキーワードを含む場合
+          → ago_line_msg_cache から同グループの最新3件のファイルURLを $text に付加
+      ii. quotedMessageId がある場合
+          → ファイル引用なら save_line_file() してURLを $quoted_text に格納
+          → テキスト引用なら $quoted_text にそのまま格納
+          → キャッシュ照合フォールバック
+      iii.グループメッセージで「ウルバン」「urvan」を含まない → スキップ
+      iv. 完了タスク保留通知があれば先にそれを返信して終了
+      v.  processLineMessage() に渡す（line-handler.php）
+5. 200 OK を返す
+</pre>
+
+<!-- ===== 6. line-handler.php の処理フロー ===== -->
+<h2>6. line-handler.php の処理フロー</h2>
+<pre>
+processLineMessage($log_entry, $api_key, $line_token):
+  1. ユーザー名解決（ago_line_users KVから）
+  2. 全業務データ読込（案件・見積・請求・発注・注文・スケジュール）
+  3. 会話履歴読込（ago_line_conv_{userId}、最新20件）
+  4. 案件サマリー構築（書類URL付き）
+  5. システムプロンプト組み立て → Claude Haiku 呼び出し（最大1500トークン）
+  6. JSON応答パース（reply + actions）
+  7. actionsが空なのに「作業します」系のreplyなら1回リトライ（ELVIN_task強制）
+  8. actions を即実行 vs 確認キューに振り分け
+  9. 確認キューがあれば菅野社長にLINE PUSH通知
+  10. 会話履歴保存（最新10往復）
+  11. LINE返信（reply_token で返信）
+  12. Web Push通知（管理画面ブラウザへ）
+  13. ログ更新
+</pre>
+
+<!-- ===== 7. パターン一覧 ===== -->
+<h2>7. AIが認識するアクションパターン（line-handler.php のシステムプロンプト）</h2>
+<table>
+  <tr><th>パターン</th><th>指示例</th><th>AIの動作</th></tr>
+  <tr><td>パターン1</td><td>「このPDFをドライブのXXXフォルダに入れて」（ファイル引用あり）</td><td>ELVIN_task：search_files→create_file(parentId)→notify-completed</td></tr>
+  <tr><td>パターン2</td><td>「この画像で見積書作ってドライブに入れてPDFにして送り返して」</td><td>ELVIN_task：スプレッドシート作成→PDF URL生成→LINEに返信</td></tr>
+  <tr><td>パターン3</td><td>「このPDF何が書いてあるか教えて」</td><td>ELVIN_task：PDFダウンロード→要約→notify-completed</td></tr>
+  <tr><td>パターン4</td><td>「この請求書の金額をドライブの集計表に入れて」</td><td>ELVIN_task：スプレッドシート記入</td></tr>
+  <tr><td>パターン5</td><td>「日本ネオンに請求書を送って」</td><td>ELVIN_task：ago_client_mapで送付先解決→lineworks_send.py→PDF送付</td></tr>
+  <tr><td><strong>パターン6</strong></td><td>「ウルバン PDFにして」「さっきのをPDFに」</td><td>ELVIN_task：直近ファイルをPDF変換してAI事業グループに送付。謝罪・確認返答は絶対禁止</td></tr>
+  <tr><td>自己処理</td><td>フェーズ変更・資材ステータス更新・名前登録・スケジュール設定・売上照会</td><td>ELVIN_taskなし・直接KV更新</td></tr>
+</table>
+
+<div class="warn">
+  <strong>ハマりポイント③（パターン6）</strong>：ユーザーが引用（リプライ）せずにテキストのみで「PDFにして」と送った場合、AIはファイルを認識できず謝罪返答になっていた。<br>
+  <strong>解決策</strong>：line-webhook.php でテキスト処理前に <code>ago_line_msg_cache</code> から同グループの最新3件のファイルURLを <code>$text</code> に付加して渡すようにした（2026-05-28実装）。
+</div>
+
+<!-- ===== 8. ELVIN_task フロー ===== -->
+<h2>8. ELVIN_task の実行フロー</h2>
+<pre>
+line-handler.php execute_action('ELVIN_task'):
+  1. prompt 先頭の「スタッフからの依頼:」を送信者名に強制置換
+  2. VPS /api/v1/tasks/recent から直近タスク結果（recent_context）取得
+  3. VPS /api/v1/tasks にタスク投入（client_id=ago_001）
+     payload: { prompt, requester_id, requester_name, log_id, recent_context }
+
+  ↓ AGO事務所PC の agent_local.py が VPS をポーリング
+  ↓ タスク取得 → Claude Code で実行
+  ↓ 完了後 notify-completed.php を叩く（結果テキスト送信）
+
+notify-completed.php:
+  1. ago_pending_notify_{requester_id} にテキスト保存
+  2. 次回ユーザーのLINEメッセージ受信時に先頭で返信（line-webhook.php）
+</pre>
+
+<div class="info">
+  <strong>注意</strong>：<code>recent_context</code> はELVIN_taskのpayloadに入るが、LINE AIのシステムプロンプトには注入されない。
+  AIがrecent_contextを見るのはあくまでELVIN_task実行側（agent_local.py）のみ。
+</div>
+
+<!-- ===== 9. ファイルキャッシュ構造 ===== -->
+<h2>9. ago_line_msg_cache の構造</h2>
+<pre>
+{
+  "{LINE_message_id}": {
+    "type":     "file" | "image",
+    "url":      "https://system002-od.ordermade-neon.com/uploads/line_files/xxx.txt",  // サーバー保存後のURL
+    "filename": "テスト18.txt",
+    "groupId":  "Cxxxxxxxxxxx" | null,
+    "userId":   "Uxxxxxxxxxx",
+    "ts":       1716000000   // Unix timestamp
+  },
+  // AIが返信したテキストもここに文字列で入る（旧形式・引用照合用）
+  "{sent_message_id}": "AIの返信テキスト..."
+}
+</pre>
+<p>最大200件保持。それ以上は古いものから削除。</p>
+<p><strong>直近ファイル注入ロジック</strong>（2026-05-28追加）：「PDF」「変換」「ドライブ」「送って」「保存」「印刷」を含むテキストメッセージかつ引用なしの場合、同グループの最新3件のファイルURLを <code>$text</code> の末尾に追加。時間制限なし（キャッシュにある限り有効）。</p>
+
+<!-- ===== 10. デバッグ方法 ===== -->
+<h2>10. デバッグ方法</h2>
+<table>
+  <tr><th>確認したいこと</th><th>方法</th></tr>
+  <tr><td>webhookが呼ばれているか</td><td>Xserver ファイルマネージャーで <code>wh_debug.log</code> を確認</td></tr>
+  <tr><td>AIが何を受け取ったか</td><td><code>wh_debug.log</code> の <code>[AI_CALL]</code> 行。text_len でプロンプト長がわかる</td></tr>
+  <tr><td>AIが何を返したか</td><td><code>[AI_RAW]</code> 行（最初の200文字）、<code>[AI_ACTIONS]</code> 行</td></tr>
+  <tr><td>ELVIN_taskが投入されたか</td><td><code>[ELVIN]</code> 行。code=200 なら成功</td></tr>
+  <tr><td>ファイルキャッシュが注入されたか</td><td><code>[CTX_INJECT]</code> 行</td></tr>
+  <tr><td>デプロイが効いているか</td><td><code>[START] webhook called v20260528-XXXX</code> のバージョン文字列で確認</td></tr>
+</table>
+
+<div class="ok">
+  <strong>ログの場所</strong>：<code>https://system002-od.ordermade-neon.com/</code> のサーバー上 → Xserverファイルマネージャー → <code>public_html/system002-od/wh_debug.log</code>
+</div>
+
+<!-- ===== 11. 既知の落とし穴 ===== -->
+<h2>11. 既知の落とし穴・過去のハマり記録</h2>
+<table>
+  <tr><th>日付</th><th>症状</th><th>原因</th><th>解決策</th></tr>
+  <tr><td>2026-05-28</td><td>「PDFにして」でウルバンが謝罪返答を続ける</td><td>①OPcacheが古いline-handler.phpをキャッシュ ②ファイルを引用せずに送るとAIがファイルを認識できない</td><td>OPcache invalidate追加 + line-webhook.phpで直近ファイルを$textに付加</td></tr>
+  <tr><td>2026-05-28</td><td>GitHub Actionsデプロイが「差分なし」でスキップ</td><td>旧リポジトリ（ago-system-manager）の同期状態ファイルがサーバーに残っていた</td><td>deploy.ymlに<code>state-name: client-ago-sync</code>を追加して新しい同期ファイルを使う</td></tr>
+  <tr><td>2026-05-28</td><td>FTPデプロイが「Failed to connect」エラー</td><td>deploy.ymlに<code>protocol: ftps</code>の指定がなかった（XserverはFTPSのみ）</td><td>deploy.ymlに<code>protocol: ftps</code>追加</td></tr>
+  <tr><td>2026-05-28</td><td>FTPデプロイが「530 Login incorrect」</td><td>GitHubの新リポジトリにFTP Secretsが未設定（旧リポジトリから引き継がれない）</td><td>FTP_SERVER / FTP_USERNAME / FTP_PASSWORDを手動でgh secret setで登録</td></tr>
+</table>
+
+</body>
+</html>

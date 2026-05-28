@@ -102,11 +102,12 @@ foreach ($events as $event) {
             }
         }
         if ($candidates) {
-            // 最新1件だけ注入（tsで降順ソート）
+            // 最新3件を注入（tsで降順ソート）
             usort($candidates, fn($a, $b) => ($b['ts'] ?? 0) - ($a['ts'] ?? 0));
-            $latest = $candidates[0];
-            $text  .= "\n\n【直近のファイル（引用なし）】\n[直近ファイル: " . ($latest['filename'] ?? 'file') . " URL: " . ($latest['url'] ?? '') . "]";
-            wh_log('[CTX_INJECT] latest file: ' . ($latest['filename'] ?? 'file') . ' ts=' . ($latest['ts'] ?? 0));
+            $top3  = array_slice($candidates, 0, 3);
+            $lines = array_map(fn($f) => '[直近ファイル: ' . ($f['filename'] ?? 'file') . ' URL: ' . ($f['url'] ?? '') . ']', $top3);
+            $text .= "\n\n【直近のファイル（引用なし・新しい順）】\n" . implode("\n", $lines);
+            wh_log('[CTX_INJECT] injected ' . count($top3) . ' recent file(s)');
         }
     }
 
