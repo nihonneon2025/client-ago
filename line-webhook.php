@@ -90,21 +90,23 @@ foreach ($events as $event) {
     $replyToken = $event['replyToken'] ?? null;
 
     // 直近ファイルのコンテキスト自動注入（引用なしで「PDFにして」等を言った場合）
-    // 同じグループ内で5分以内に送られたファイルをAIに見せる
-    if (!empty($event['message']['quotedMessageId']) === false && preg_match('/PDF|変換|ドライブ|送って|保存|印刷/u', $text)) {
-        $f_cache = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
-        $cutoff  = time() - 300;
-        $inject  = [];
+    // 同じグループで最後に送ったファイルをAIに見せる（時間制限なし・引用なしで「PDFにして」等を言った場合）
+    if (empty($event['message']['quotedMessageId']) && preg_match('/PDF|変換|ドライブ|送って|保存|印刷/u', $text)) {
+        $f_cache    = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
+        $candidates = [];
         foreach ($f_cache as $fid => $fdata) {
             if (!is_array($fdata)) continue;
             $same_ctx = $groupId ? (($fdata['groupId'] ?? null) === $groupId) : (($fdata['userId'] ?? null) === $userId);
-            if ($same_ctx && ($fdata['ts'] ?? 0) >= $cutoff) {
-                $inject[] = '[直近ファイル: ' . ($fdata['filename'] ?? 'file') . ' URL: ' . ($fdata['url'] ?? '') . ']';
+            if ($same_ctx && !empty($fdata['url'])) {
+                $candidates[] = $fdata;
             }
         }
-        if ($inject) {
-            $text .= "\n\n【直近のファイル（引用なし）】\n" . implode("\n", $inject);
-            wh_log('[CTX_INJECT] added ' . count($inject) . ' recent file(s) to text');
+        if ($candidates) {
+            // 最新1件だけ注入（tsで降順ソート）
+            usort($candidates, fn($a, $b) => ($b['ts'] ?? 0) - ($a['ts'] ?? 0));
+            $latest = $candidates[0];
+            $text  .= "\n\n【直近のファイル（引用なし）】\n[直近ファイル: " . ($latest['filename'] ?? 'file') . " URL: " . ($latest['url'] ?? '') . "]";
+            wh_log('[CTX_INJECT] latest file: ' . ($latest['filename'] ?? 'file') . ' ts=' . ($latest['ts'] ?? 0));
         }
     }
 
