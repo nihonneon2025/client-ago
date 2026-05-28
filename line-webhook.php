@@ -312,10 +312,23 @@ if (!empty($deferred)) {
             $users_m  = json_decode(ago_kv_get('ago_line_users') ?? '{}', true) ?: [];
             $sender   = $users_m[$uid] ?? ('スタッフ(' . substr($uid, -6) . ')');
             $file_info = !empty($hits[0])
-                ? '直近ファイル: ' . ($hits[0]['filename'] ?? 'file') . '  URL: ' . $hits[0]['url']
-                : '（ファイルURL不明・デスクトップの直近ファイルを使用）';
+                ? 'ファイル名: ' . ($hits[0]['filename'] ?? 'file') . "\nダウンロードURL: " . $hits[0]['url']
+                : '（ファイル情報なし）';
+            $filename = $hits[0]['filename'] ?? '';
+            $file_url = $hits[0]['url'] ?? '';
 
-            $prompt = "{$sender}からの指示:\n{$raw_text}\n\n{$file_info}\n\n上記のファイルをPDFに変換してAI事業グループに送ってください。";
+            $prompt = "{$sender}からの依頼: 「PDFにして」\n\n"
+                . "## 対象ファイル\n{$file_info}\n\n"
+                . "## 実行手順\n"
+                . "1. まず `C:\\Users\\Administrator\\Desktop\\AI◆◆AGO\\` 配下で `{$filename}` を探す\n"
+                . "2. 見つかった場合 → 手順3へ\n"
+                . "3. 見つからない場合 → 上記URLからファイルをダウンロード: `Invoke-WebRequest '{$file_url}' -OutFile 'C:\\temp\\{$filename}'`\n"
+                . "4. ファイル拡張子を確認:\n"
+                . "   - `.pdf` の場合: そのまま送付（generate_pdfは使わない）\n"
+                . "   - `.txt` / `.doc` 等の場合: ワードパッドでPDF印刷 or LibreOffice変換\n"
+                . "5. `python lineworks_send.py \"AI事業\" 対象ファイルパス --file --headless` でAI事業グループに送付\n"
+                . "6. 完了したら `notify-completed` でLINEに結果を返す\n"
+                . "7. tempファイルがあれば削除\n";
 
             // ELVIN VPS に直接投入
             $bt_secret = defined('ELVIN_VPS_SECRET') ? ELVIN_VPS_SECRET : 'elvin2026';
