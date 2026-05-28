@@ -291,6 +291,67 @@ if (!empty($deferred)) {
     require_once __DIR__ . '/line-handler.php';
     foreach ($deferred as $entry) {
         wh_log('[BG] processing userId=' . $entry['userId'] . ' text=' . mb_substr($entry['text'], 0, 30));
+
+        // ── 「PDFにして」PHP直接処理（AIを通さず確実に実行） ──────────
+        $raw_text = $entry['text'] ?? '';
+        if (preg_match('/PDFにして|PDFに変換|PDF.*にして/u', $raw_text) && empty($entry['quoted_text'])) {
+            wh_log('[PDF_SHORTCUT] detected PDF pattern, bypassing AI');
+
+            // 直近ファイルをキャッシュから取得
+            $fc      = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
+            $gid     = $entry['groupId'] ?? null;
+            $uid     = $entry['userId']  ?? '';
+            $hits    = [];
+            foreach ($fc as $fid => $fd) {
+                if (!is_array($fd) || empty($fd['url'])) continue;
+                $ctx = $gid ? (($fd['groupId'] ?? null) === $gid) : (($fd['userId'] ?? null) === $uid);
+                if ($ctx) $hits[] = $fd;
+            }
+            usort($hits, fn($a, $b) => ($b['ts'] ?? 0) - ($a['ts'] ?? 0));
+
+            $users_m  = json_decode(ago_kv_get('ago_line_users') ?? '{}', true) ?: [];
+            $sender   = $users_m[$uid] ?? ('スタッフ(' . substr($uid, -6) . ')');
+            $file_info = !empty($hits[0])
+                ? '直近ファイル: ' . ($hits[0]['filename'] ?? 'file') . '  URL: ' . $hits[0]['url']
+                : '（ファイルURL不明・デスクトップの直近ファイルを使用）';
+
+            $prompt = "{$sender}からの指示:\n{$raw_text}\n\n{$file_info}\n\n上記のファイルをPDFに変換してAI事業グループに送ってください。";
+
+            // ELVIN VPS に直接投入
+            $bt_secret = defined('ELVIN_VPS_SECRET') ? ELVIN_VPS_SECRET : 'elvin2026';
+            $bt_body   = json_encode([
+                'client_id' => 'ago_001',
+                'type'      => 'ELVIN_task',
+                'payload'   => [
+                    'prompt'         => $prompt,
+                    'requester_id'   => $gid ?? $uid,
+                    'requester_name' => $sender,
+                    'log_id'         => $entry['id'] ?? null,
+                    'recent_context' => '',
+                ],
+            ]);
+            $ch = curl_init('https://api.nihon-neon.jp/api/v1/tasks');
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $bt_body,
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-Daemon-Secret: ' . $bt_secret],
+                CURLOPT_TIMEOUT        => 15,
+            ]);
+            $bt_res  = curl_exec($ch);
+            $bt_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            wh_log('[PDF_SHORTCUT] ELVIN queued code=' . $bt_code . ' file=' . ($hits[0]['filename'] ?? 'none'));
+
+            // LINE に即返信
+            if ($LINE_CHANNEL_TOKEN && !empty($entry['reply_token'])) {
+                line_reply($LINE_CHANNEL_TOKEN, $entry['reply_token'], "確認しました。PDFに変換してお送りします📄");
+            }
+            ago_log_update($entry['id'] ?? '', ['status' => 'replied', 'ai_reply' => 'PDF_SHORTCUT']);
+            continue;
+        }
+        // ─────────────────────────────────────────────────────────────
+
         processLineMessage($entry, $api_key, $LINE_CHANNEL_TOKEN);
         wh_log('[BG] done userId=' . $entry['userId']);
     }
