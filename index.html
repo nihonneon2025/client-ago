@@ -2737,27 +2737,50 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       if (_c12DayOff !== 0) setTimeout(applyDayOffset, 0);
     }).observe(ov, {childList: true});
 
-    // ドラッグ操作
-    var _sx = null, _startOff = 0, _lastOff = null;
-    var PX_PER_DAY = 40;
+    // ドラッグ操作（ドラッグ中はテーブルが物理的に追従、離したらスナップ）
+    var _sx = null, _startOff = 0, _pendingOff = 0, _dragging = false;
+
+    function pxPerDay() {
+      // 列幅を動的に取得（デフォルト80px）
+      var th = ov.querySelector('thead th:nth-child(2)');
+      return th ? Math.max(th.offsetWidth, 60) : 80;
+    }
+
+    function getTable() { return ov.querySelector('table'); }
 
     function onStart(x) {
-      if (document.querySelector('.sch-cell-entry:active')) return;
-      _sx = x; _startOff = _c12DayOff;
+      if (_dragging) return;
+      _sx = x; _startOff = _c12DayOff; _pendingOff = _c12DayOff; _dragging = true;
+      var t = getTable(); if (t) { t.style.transition = 'none'; t.style.userSelect = 'none'; }
     }
     function onMove(x) {
-      if (_sx === null) return;
+      if (!_dragging || _sx === null) return;
       var dx = x - _sx;
-      var newOff = _startOff - Math.round(dx / PX_PER_DAY);
-      if (newOff !== _lastOff) { _lastOff = newOff; _c12DayOff = newOff; applyDayOffset(); }
+      var t = getTable();
+      if (t) t.style.transform = 'translateX(' + dx + 'px)';
+      _pendingOff = _startOff - Math.round(dx / pxPerDay());
     }
-    function onEnd() { _sx = null; }
+    function onEnd() {
+      if (!_dragging) return;
+      _dragging = false; _sx = null;
+      var t = getTable();
+      if (!t) { _c12DayOff = _pendingOff; applyDayOffset(); return; }
+      // スナップアニメーション
+      t.style.transition = 'transform 0.18s ease';
+      t.style.transform = 'translateX(0)';
+      t.style.userSelect = '';
+      _c12DayOff = _pendingOff;
+      setTimeout(function() {
+        t.style.transition = ''; t.style.transform = '';
+        applyDayOffset();
+      }, 180);
+    }
 
     ov.addEventListener('mousedown',  function(ev) { if (!ev.target.closest('.sch-cell-entry')) onStart(ev.clientX); });
-    document.addEventListener('mousemove', function(ev) { onMove(ev.clientX); });
+    document.addEventListener('mousemove', function(ev) { if (_dragging) onMove(ev.clientX); });
     document.addEventListener('mouseup',   onEnd);
     ov.addEventListener('touchstart', function(ev) { onStart(ev.touches[0].clientX); }, {passive:true});
-    ov.addEventListener('touchmove',  function(ev) { onMove(ev.touches[0].clientX); }, {passive:true});
+    ov.addEventListener('touchmove',  function(ev) { if (_dragging) onMove(ev.touches[0].clientX); }, {passive:true});
     ov.addEventListener('touchend',   onEnd);
   }
 
