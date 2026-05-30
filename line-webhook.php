@@ -146,7 +146,7 @@ foreach ($events as $event) {
                     if ($cached_img && !empty($cached_img['url'])) {
                         $img_filename = basename(parse_url($cached_img['url'], PHP_URL_PATH));
                         $serve_url = 'https://' . $_SERVER['HTTP_HOST'] . '/serve-file.php?f=' . urlencode($img_filename);
-                        $quoted_text = '[IMAGE_URL: ' . $serve_url . ']';
+                        $quoted_text = '[ファイル:' . $img_filename . ' URL:' . $serve_url . ']';
                         wh_log('[QUOTE_DL] image serve_url=' . $serve_url);
                     } else {
                         wh_log('[QUOTE_DL] FAIL image no cache for id=' . $quoted_id);
