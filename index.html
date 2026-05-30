@@ -949,8 +949,8 @@ header{margin-left:var(--sb-w)}
 <div id="schedule-view" style="display:none">
   <!-- Sub navigation: 全体 / 現場 / 個人 -->
   <div class="sch-sub-nav">
-    <button class="sch-sub-btn active" id="sch-sub-overview" onclick="switchSchSub('overview')">👥 全体</button>
-    <button class="sch-sub-btn" id="sch-sub-timeline" onclick="switchSchSub('timeline')">⏱ タイムライン</button>
+    <button class="sch-sub-btn" id="sch-sub-overview" onclick="switchSchSub('overview')" style="display:none">👥 全体</button>
+    <button class="sch-sub-btn active" id="sch-sub-timeline" onclick="switchSchSub('timeline')">⏱ タイムライン</button>
     <button class="sch-sub-btn" id="sch-sub-projects" onclick="switchSchSub('projects')">🏗 現場</button>
     <button class="sch-sub-btn" id="sch-sub-personal" onclick="switchSchSub('personal')">👤 個人</button>
     <button class="sch-sub-btn" id="sch-sub-board" onclick="switchSchSub('board')">📋 ボード</button>
@@ -2913,7 +2913,10 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       setTimeout(function() {
         if (_schedDone) return;
         _schedDone = true;
-        if (typeof switchTab === 'function') switchTab('schedule');
+        if (typeof switchTab === 'function') {
+          switchTab('schedule');
+          setTimeout(function() { if (typeof switchSchSub === 'function') switchSchSub('timeline'); }, 200);
+        }
       }, delay || 0);
     }
 
