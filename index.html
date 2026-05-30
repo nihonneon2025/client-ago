@@ -1963,6 +1963,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
         <button class="btn-primary" style="padding:6px 14px;font-size:13px" onclick="applyProjectRoutine()">17工程を一括展開</button>
       </div>
     </div>
+    <div id="routine-list-m"></div>
   </div>
 
   <!-- 着工1週間前チェックリスト -->
@@ -2098,6 +2099,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     await loadDeadlineAlerts();
     await loadConstructionAlerts();
     await loadChecklistAlerts();
+    await loadProjectRoutines();
   };
 
   async function loadOrderMaster() {
@@ -2323,8 +2325,43 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       ['rt-name-m','rt-date-m','rt-room-m'].forEach(function(id){document.getElementById(id).value='';});
       document.getElementById('rt-days-m').value = '3';
       if (typeof showToast==='function') showToast('17工程を展開しました（期限アラートに追加）');
+      await loadProjectRoutines();
       await loadDeadlineAlerts();
     } catch(e) { if (typeof showToast==='function') showToast('展開失敗: '+e.message); }
+  };
+
+  async function loadProjectRoutines() {
+    var el = document.getElementById('routine-list-m');
+    if (!el) return;
+    try {
+      var rows = await apiCall('GET', '/api/v1/client/project-routines');
+      if (!rows.length) {
+        el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">登録済みの案件はありません</div>';
+        return;
+      }
+      el.innerHTML = rows.map(function(r) {
+        var cd = r.construction_date || '';
+        var created = r.created_at ? r.created_at.slice(0,10) : '';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border)">'
+          + '<div>'
+          + '<div style="font-size:13px;font-weight:600">' + r.project_name + '</div>'
+          + '<div style="font-size:11px;color:var(--muted);margin-top:2px">着工予定: ' + cd + '　展開日: ' + created + '</div>'
+          + '</div>'
+          + '<button onclick="deleteProjectRoutine(\'' + r.id + '\')" style="padding:4px 10px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--muted);cursor:pointer">削除</button>'
+          + '</div>';
+      }).join('');
+    } catch(e) {
+      el.innerHTML = '<div style="padding:16px;color:#ef4444;font-size:13px">読み込みエラー</div>';
+    }
+  }
+
+  window.deleteProjectRoutine = async function(id) {
+    if (!confirm('このルーティン記録を削除しますか？\n（展開済みの期限アラートは残ります）')) return;
+    try {
+      await apiCall('DELETE', '/api/v1/client/project-routines/' + id);
+      if (typeof showToast==='function') showToast('削除しました');
+      await loadProjectRoutines();
+    } catch(e) { if (typeof showToast==='function') showToast('削除失敗: '+e.message); }
   };
 
   window.deleteConstructionAlert = async function(id) {
