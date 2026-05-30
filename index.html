@@ -2083,9 +2083,9 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
         return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;'+
           (i<rows.length-1?'border-bottom:1px solid var(--border)':'')+(ordered?';opacity:.65':'')+'">' +
           '<div style="flex:1">' +
-          '<div style="font-size:13px;font-weight:600">'+esc(r.construction_name)+'</div>' +
+          '<div style="font-size:13px;font-weight:600">'+esc(r.project_name)+'</div>' +
           '<div style="font-size:11px;color:var(--muted);margin-top:2px">品目: '+esc(r.order_item_name||'-')+' / 着工: '+esc(r.construction_date)+'</div>' +
-          '<div style="font-size:11px;margin-top:1px">発注期限: <strong style="color:'+(ordered?'#10b981':'#ef4444')+'">'+esc(r.order_date)+'</strong></div>' +
+          '<div style="font-size:11px;margin-top:1px">発注期限: <strong style="color:'+(ordered?'#10b981':'#ef4444')+'">'+esc((function(){var cd=new Date(r.construction_date+'T00:00:00');return new Date(cd.getTime()-(r.lead_time_days||14)*86400000).toISOString().slice(0,10);})())+'</strong></div>' +
           '</div>' +
           '<div style="display:flex;gap:6px;flex-shrink:0">' +
           (!ordered?'<button onclick="markAlertOrdered(\''+esc(r.id)+'\')" style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#10b981;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:12px">発注済</button>':'<span style="font-size:12px;color:#10b981;font-weight:600">✅ 発注済</span>') +
@@ -2210,7 +2210,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     if (!name || !date || !itemId || !room) { alert('現場名・着工日・発注品目・LINEルーム名は必須です'); return; }
     try {
       await apiCall('POST', '/api/v1/client/construction-alerts', {
-        construction_name:name, construction_date:date, order_master_id:itemId, lineworks_room:room
+        project_name:name, construction_date:date, order_item_id:itemId, lineworks_room:room
       });
       document.getElementById('construction-alert-form-m').style.display = 'none';
       ['ca-name-m','ca-date-m','ca-room-m'].forEach(function(id){document.getElementById(id).value='';});
