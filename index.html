@@ -615,6 +615,7 @@ header{margin-left:var(--sb-w)}
     <button class="sb-item" data-tab="customers" onclick="switchTab('customers')"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg><span>コンタクト</span></button>
     <button class="sb-item" data-tab="instructions" onclick="switchTab('instructions')"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg><span>指示</span></button>
     <button class="sb-item" data-tab="staff" onclick="switchTab('staff')"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg><span>スタッフ</span></button>
+    <button class="sb-item" data-tab="alerts" onclick="switchTab('alerts')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span>発注アラート</span></button>
   </div>
 </nav>
 <div id="sb-overlay" onclick="document.getElementById('sidebar-nav').classList.remove('open');this.classList.remove('open')"></div>
@@ -709,6 +710,7 @@ header{margin-left:var(--sb-w)}
     <button class="tab-btn" id="tab-customers" onclick="switchTab('customers')">👥 <span id="tab-customers-lbl">コンタクト</span></button>
     <button class="tab-btn" id="tab-instructions" onclick="switchTab('instructions')">✉ <span id="tab-instructions-lbl">指示</span></button>
     <button class="tab-btn" id="tab-line" onclick="switchTab('line')">💬 <span id="tab-line-lbl">LINE</span></button>
+    <button class="tab-btn" id="tab-alerts" onclick="switchTab('alerts')">🔔 <span id="tab-alerts-lbl">発注アラート</span></button>
   </div>
 </div>
 
@@ -1774,6 +1776,83 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
   </div>
 </div>
 
+<!-- 発注アラート -->
+<div id="alerts-view" style="display:none;padding:16px 16px 100px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div>
+      <div style="font-size:18px;font-weight:700">🔔 発注アラート</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">着工前の発注漏れを防ぎます。期限が来たらLINEで自動通知します</div>
+    </div>
+    <button class="btn-secondary" style="padding:6px 14px;font-size:13px" onclick="initAlertsView()">🔄 更新</button>
+  </div>
+
+  <!-- 品目マスター -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+      <div style="font-size:14px;font-weight:600">📦 品目マスター（リードタイム設定）</div>
+      <button class="btn-secondary" style="padding:4px 12px;font-size:12px" onclick="showOrderMasterForm()">＋ 追加</button>
+    </div>
+    <div id="order-master-form-m" style="display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+      <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:end">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">品目名</div>
+          <input id="om-name-m" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: 輸入LEDパネル">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">カテゴリ</div>
+          <input id="om-cat-m" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: 輸入品">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">リードタイム（日）</div>
+          <input id="om-lt-m" type="number" min="1" style="width:80px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="30">
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn-primary" style="padding:6px 12px;font-size:12px" onclick="saveOrderMaster()">保存</button>
+          <button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="document.getElementById('order-master-form-m').style.display='none'">×</button>
+        </div>
+      </div>
+    </div>
+    <div id="order-master-list-m"></div>
+  </div>
+
+  <!-- 着工アラート -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+      <div style="font-size:14px;font-weight:600">📅 着工アラート</div>
+      <button class="btn-secondary" style="padding:4px 12px;font-size:12px" onclick="showConstructionAlertForm()">＋ 新規登録</button>
+    </div>
+    <div id="construction-alert-form-m" style="display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">現場名</div>
+          <input id="ca-name-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: 渋谷店舗工事">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">着工日</div>
+          <input id="ca-date-m" type="date" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">発注品目</div>
+          <select id="ca-item-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
+            <option value="">-- 品目を選択 --</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">LINEルーム名（省略可）</div>
+          <input id="ca-room-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: AGO全体">
+        </div>
+      </div>
+      <div style="text-align:right">
+        <button class="btn-secondary" style="padding:6px 14px;font-size:13px;margin-right:6px" onclick="document.getElementById('construction-alert-form-m').style.display='none'">キャンセル</button>
+        <button class="btn-primary" style="padding:6px 14px;font-size:13px" onclick="saveConstructionAlert()">登録</button>
+      </div>
+    </div>
+    <div id="construction-alert-list-m"></div>
+  </div>
+</div>
+
 <!-- スタッフ管理 -->
 <div id="staff-view" style="display:none;padding:16px 16px 100px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -1852,6 +1931,177 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
   }
   setTimeout(patchSwitchTab, 100);
   document.addEventListener('DOMContentLoaded', patchSwitchTab);
+})();
+</script>
+
+<script>
+(function(){
+  var ELVIN_API = 'https://api.nihon-neon.jp';
+  var ELVIN_TOKEN = '4507171597d749daa3dd6d1d118122d3';
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  var _orderMasterItems = [];
+
+  async function apiCall(method, path, body) {
+    var opts = {method:method, headers:{'X-Client-Token':ELVIN_TOKEN,'Content-Type':'application/json'}};
+    if (body) opts.body = JSON.stringify(body);
+    var res = await fetch(ELVIN_API + path, opts);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }
+
+  window.initAlertsView = async function() {
+    await loadOrderMaster();
+    await loadConstructionAlerts();
+  };
+
+  async function loadOrderMaster() {
+    var el = document.getElementById('order-master-list-m');
+    el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">読み込み中...</div>';
+    try {
+      _orderMasterItems = await apiCall('GET', '/api/v1/client/order-master');
+      var sel = document.getElementById('ca-item-m');
+      if (sel) {
+        var cur = sel.value;
+        sel.innerHTML = '<option value="">-- 品目を選択 --</option>' +
+          _orderMasterItems.map(function(m){return '<option value="'+esc(m.id)+'">'+esc(m.name)+'（'+m.lead_time_days+'日前）</option>';}).join('');
+        sel.value = cur;
+      }
+      if (!_orderMasterItems.length) {
+        el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">品目が登録されていません。「＋ 追加」から登録してください</div>';
+        return;
+      }
+      el.innerHTML = '<div>' + _orderMasterItems.map(function(m,i){
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;'+
+          (i<_orderMasterItems.length-1?'border-bottom:1px solid var(--border)':'')+'">' +
+          '<div><div style="font-size:13px;font-weight:600">'+esc(m.name)+'</div>' +
+          '<div style="font-size:11px;color:var(--muted)">'+esc(m.category||'-')+' / リードタイム: '+m.lead_time_days+'日前</div></div>' +
+          '<button onclick="deleteOrderMaster(\''+esc(m.id)+'\')" style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:12px">削除</button>' +
+          '</div>';
+      }).join('') + '</div>';
+    } catch(e) {
+      el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--red);font-size:13px">読み込み失敗: '+e.message+'</div>';
+    }
+  }
+
+  async function loadConstructionAlerts() {
+    var el = document.getElementById('construction-alert-list-m');
+    el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">読み込み中...</div>';
+    try {
+      var rows = await apiCall('GET', '/api/v1/client/construction-alerts');
+      if (!rows.length) {
+        el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">着工アラートがありません。「＋ 新規登録」から追加してください</div>';
+        return;
+      }
+      el.innerHTML = '<div>' + rows.map(function(r,i){
+        var ordered = r.status === 'ordered';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;'+
+          (i<rows.length-1?'border-bottom:1px solid var(--border)':'')+(ordered?';opacity:.65':'')+'">' +
+          '<div style="flex:1">' +
+          '<div style="font-size:13px;font-weight:600">'+esc(r.construction_name)+'</div>' +
+          '<div style="font-size:11px;color:var(--muted);margin-top:2px">品目: '+esc(r.order_item_name||'-')+' / 着工: '+esc(r.construction_date)+'</div>' +
+          '<div style="font-size:11px;margin-top:1px">発注期限: <strong style="color:'+(ordered?'#10b981':'#ef4444')+'">'+esc(r.order_date)+'</strong></div>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;flex-shrink:0">' +
+          (!ordered?'<button onclick="markAlertOrdered(\''+esc(r.id)+'\')" style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#10b981;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:12px">発注済</button>':'<span style="font-size:12px;color:#10b981;font-weight:600">✅ 発注済</span>') +
+          '<button onclick="deleteConstructionAlert(\''+esc(r.id)+'\')" style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:12px">削除</button>' +
+          '</div></div>';
+      }).join('') + '</div>';
+    } catch(e) {
+      el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--red);font-size:13px">読み込み失敗: '+e.message+'</div>';
+    }
+  }
+
+  window.showOrderMasterForm = function() {
+    document.getElementById('order-master-form-m').style.display = '';
+    document.getElementById('om-name-m').focus();
+  };
+  window.showConstructionAlertForm = function() {
+    document.getElementById('construction-alert-form-m').style.display = '';
+    document.getElementById('ca-name-m').focus();
+  };
+
+  window.saveOrderMaster = async function() {
+    var name = document.getElementById('om-name-m').value.trim();
+    var cat = document.getElementById('om-cat-m').value.trim();
+    var lt = parseInt(document.getElementById('om-lt-m').value);
+    if (!name || !lt) { alert('品目名とリードタイムは必須です'); return; }
+    try {
+      await apiCall('POST', '/api/v1/client/order-master', {name:name, category:cat, lead_time_days:lt});
+      document.getElementById('order-master-form-m').style.display = 'none';
+      ['om-name-m','om-cat-m','om-lt-m'].forEach(function(id){document.getElementById(id).value='';});
+      if (typeof showToast==='function') showToast('品目を登録しました');
+      await loadOrderMaster();
+    } catch(e) { if (typeof showToast==='function') showToast('登録失敗: '+e.message); }
+  };
+
+  window.deleteOrderMaster = async function(id) {
+    if (!confirm('この品目を削除しますか？')) return;
+    try {
+      await apiCall('DELETE', '/api/v1/client/order-master/'+id);
+      if (typeof showToast==='function') showToast('削除しました');
+      await loadOrderMaster();
+    } catch(e) { if (typeof showToast==='function') showToast('削除失敗: '+e.message); }
+  };
+
+  window.saveConstructionAlert = async function() {
+    var name = document.getElementById('ca-name-m').value.trim();
+    var date = document.getElementById('ca-date-m').value;
+    var itemId = document.getElementById('ca-item-m').value;
+    var room = document.getElementById('ca-room-m').value.trim();
+    if (!name || !date || !itemId) { alert('現場名・着工日・発注品目は必須です'); return; }
+    try {
+      await apiCall('POST', '/api/v1/client/construction-alerts', {
+        construction_name:name, construction_date:date, order_master_id:itemId, lineworks_room:room
+      });
+      document.getElementById('construction-alert-form-m').style.display = 'none';
+      ['ca-name-m','ca-date-m','ca-room-m'].forEach(function(id){document.getElementById(id).value='';});
+      document.getElementById('ca-item-m').value = '';
+      if (typeof showToast==='function') showToast('着工アラートを登録しました');
+      await loadConstructionAlerts();
+    } catch(e) { if (typeof showToast==='function') showToast('登録失敗: '+e.message); }
+  };
+
+  window.markAlertOrdered = async function(id) {
+    try {
+      await apiCall('PATCH', '/api/v1/client/construction-alerts/'+id, {status:'ordered'});
+      if (typeof showToast==='function') showToast('発注済みにしました');
+      await loadConstructionAlerts();
+    } catch(e) { if (typeof showToast==='function') showToast('更新失敗: '+e.message); }
+  };
+
+  window.deleteConstructionAlert = async function(id) {
+    if (!confirm('このアラートを削除しますか？')) return;
+    try {
+      await apiCall('DELETE', '/api/v1/client/construction-alerts/'+id);
+      if (typeof showToast==='function') showToast('削除しました');
+      await loadConstructionAlerts();
+    } catch(e) { if (typeof showToast==='function') showToast('削除失敗: '+e.message); }
+  };
+
+  var ALL_VIEWS_ALERTS = ['dashboard-view','customer-view','monthly-view','projects-view','line-view','accounting-view','instructions-view','attendance-view','schedule-view','detail-view','staff-view'];
+  var _origSwitchTabAlerts = null;
+  function _patchedSwitchTabAlerts(name) {
+    var av = document.getElementById('alerts-view');
+    if (name === 'alerts') {
+      ALL_VIEWS_ALERTS.forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+      if (av) av.style.display = 'block';
+      document.querySelectorAll('.sb-item').forEach(function(e){e.classList.remove('active');});
+      var s = document.querySelector('.sb-item[data-tab="alerts"]');
+      if (s) s.classList.add('active');
+      window.initAlertsView();
+    } else {
+      if (av) av.style.display = 'none';
+      if (_origSwitchTabAlerts) _origSwitchTabAlerts(name);
+    }
+  }
+  function patchSwitchTabAlerts() {
+    if (typeof switchTab==='function' && switchTab!==_patchedSwitchTabAlerts) {
+      _origSwitchTabAlerts = switchTab;
+      window.switchTab = _patchedSwitchTabAlerts;
+    }
+  }
+  setTimeout(patchSwitchTabAlerts, 300);
+  document.addEventListener('DOMContentLoaded', patchSwitchTabAlerts);
 })();
 </script>
 
