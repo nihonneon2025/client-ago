@@ -1795,7 +1795,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       <button class="btn-secondary" style="padding:4px 12px;font-size:12px" onclick="showOrderMasterForm()">＋ 追加</button>
     </div>
     <div id="order-master-form-m" style="display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
-      <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:end">
+      <div style="display:grid;grid-template-columns:1fr 1fr auto auto auto;gap:8px;align-items:end">
         <div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px">品目名</div>
           <input id="om-name-m" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: 輸入LEDパネル">
@@ -1807,6 +1807,10 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
         <div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px">リードタイム（日）</div>
           <input id="om-lt-m" type="number" min="1" style="width:80px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="30">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">単価（円）</div>
+          <input id="om-price-m" type="number" min="0" style="width:100px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="0">
         </div>
         <div style="display:flex;gap:6px">
           <button class="btn-primary" style="padding:6px 12px;font-size:12px" onclick="saveOrderMaster()">保存</button>
@@ -1833,12 +1837,24 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px">種別</div>
           <select id="da-cat-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
             <option value="">-- 選択 --</option>
-            <option>構造変更申請</option>
-            <option>道路使用許可</option>
-            <option>職人手配</option>
-            <option>見積提出</option>
-            <option>請求書発行</option>
-            <option>その他</option>
+            <optgroup label="📋 申請・許可">
+              <option>構造変更申請</option>
+              <option>道路使用許可</option>
+              <option>工事申請</option>
+            </optgroup>
+            <optgroup label="👷 手配">
+              <option>下請手配</option>
+              <option>職人手配</option>
+            </optgroup>
+            <optgroup label="💰 経理">
+              <option>見積提出</option>
+              <option>請求書発行</option>
+              <option>入金確認</option>
+            </optgroup>
+            <optgroup label="📁 その他">
+              <option>施工指示書配布</option>
+              <option>その他</option>
+            </optgroup>
           </select>
         </div>
       </div>
@@ -1885,12 +1901,16 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
           <input id="ca-date-m" type="date" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
         <div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px">発注品目</div>
           <select id="ca-item-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
             <option value="">-- 品目を選択 --</option>
           </select>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">発注金額（円）</div>
+          <input id="ca-amount-m" type="number" min="0" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="0">
         </div>
         <div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px">LINEルーム名 <span style="color:#ef4444">*</span></div>
@@ -1903,6 +1923,46 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       </div>
     </div>
     <div id="construction-alert-list-m"></div>
+  </div>
+
+  <!-- C-18: 案件ルーティンテンプレート -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:14px;font-weight:600">🔁 案件ルーティン一括展開</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">現調〜入金確認の17工程を一括登録。期限アラートに自動追加されます</div>
+      </div>
+      <button class="btn-secondary" style="padding:4px 12px;font-size:12px" onclick="toggleRoutineForm()">＋ 展開</button>
+    </div>
+    <div id="routine-form-m" style="display:none;padding:14px 16px;background:var(--bg)">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">現場名</div>
+          <input id="rt-name-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: 渋谷店舗工事">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">着工日</div>
+          <input id="rt-date-m" type="date" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:12px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">LINEルーム名 <span style="color:#ef4444">*</span></div>
+          <input id="rt-room-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: AGO全体（正確なルーム名）">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">何日前から通知</div>
+          <input id="rt-days-m" type="number" min="1" value="3" style="width:80px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
+        </div>
+      </div>
+      <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--muted);line-height:1.8">
+        展開される17工程: 現調(着工60日前) → 現調内容共有 → 現調資料まとめ → 図面・施工指示書作成 → 見積・積算 → 契約 → 発注・申請(30日前) → 下請・職人手配(21日前) → 施工内容打合(14日前) → 着工 → 監督情報共有 → 現場調整協議 → 完了 → 監督検査 → 施主検査 → 竣工 → 請求・入金確認(竣工+42日)
+      </div>
+      <div style="text-align:right">
+        <button class="btn-secondary" style="padding:6px 14px;font-size:13px;margin-right:6px" onclick="toggleRoutineForm()">キャンセル</button>
+        <button class="btn-primary" style="padding:6px 14px;font-size:13px" onclick="applyProjectRoutine()">17工程を一括展開</button>
+      </div>
+    </div>
   </div>
 
   <!-- 着工1週間前チェックリスト -->
@@ -2060,7 +2120,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
         return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;'+
           (i<_orderMasterItems.length-1?'border-bottom:1px solid var(--border)':'')+'">' +
           '<div><div style="font-size:13px;font-weight:600">'+esc(m.name)+'</div>' +
-          '<div style="font-size:11px;color:var(--muted)">'+esc(m.category||'-')+' / リードタイム: '+m.lead_time_days+'日前</div></div>' +
+          '<div style="font-size:11px;color:var(--muted)">'+esc(m.category||'-')+' / リードタイム: '+m.lead_time_days+'日前'+(m.unit_price?' / 単価: ¥'+Number(m.unit_price).toLocaleString():'')+' </div></div>' +
           '<button onclick="deleteOrderMaster(\''+esc(m.id)+'\')" style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:12px">削除</button>' +
           '</div>';
       }).join('') + '</div>';
@@ -2080,15 +2140,21 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       }
       el.innerHTML = '<div>' + rows.map(function(r,i){
         var ordered = r.status === 'ordered';
+        var delivered = r.status === 'delivered';
+        var orderDeadline = (function(){var cd=new Date(r.construction_date+'T00:00:00');return new Date(cd.getTime()-(r.lead_time_days||14)*86400000).toISOString().slice(0,10);})();
+        var today = new Date().toISOString().slice(0,10);
+        var overdue = !ordered && !delivered && orderDeadline < today;
+        var amountStr = r.order_amount ? '¥'+Number(r.order_amount).toLocaleString() : '';
         return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;'+
-          (i<rows.length-1?'border-bottom:1px solid var(--border)':'')+(ordered?';opacity:.65':'')+'">' +
+          (i<rows.length-1?'border-bottom:1px solid var(--border)':'')+(delivered?';opacity:.55':'')+'">' +
           '<div style="flex:1">' +
-          '<div style="font-size:13px;font-weight:600">'+esc(r.project_name)+'</div>' +
-          '<div style="font-size:11px;color:var(--muted);margin-top:2px">品目: '+esc(r.order_item_name||'-')+' / 着工: '+esc(r.construction_date)+'</div>' +
-          '<div style="font-size:11px;margin-top:1px">発注期限: <strong style="color:'+(ordered?'#10b981':'#ef4444')+'">'+esc((function(){var cd=new Date(r.construction_date+'T00:00:00');return new Date(cd.getTime()-(r.lead_time_days||14)*86400000).toISOString().slice(0,10);})())+'</strong></div>' +
+          '<div style="font-size:13px;font-weight:600">'+esc(r.project_name)+(delivered?' <span style="font-size:11px;color:#10b981">✅ 納品確認済</span>':overdue?' <span style="font-size:11px;color:#ef4444;font-weight:700">⚠ 期限超過</span>':'')+'</div>' +
+          '<div style="font-size:11px;color:var(--muted);margin-top:2px">品目: '+esc(r.order_item_name||'-')+' / 着工: '+esc(r.construction_date)+(amountStr?' / 発注金額: <strong>'+amountStr+'</strong>':'')+'</div>' +
+          '<div style="font-size:11px;margin-top:1px">発注期限: <strong style="color:'+(delivered||ordered?'#10b981':overdue?'#ef4444':'var(--text)')+'">'+esc(orderDeadline)+'</strong></div>' +
           '</div>' +
           '<div style="display:flex;gap:6px;flex-shrink:0">' +
-          (!ordered?'<button onclick="markAlertOrdered(\''+esc(r.id)+'\')" style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#10b981;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:12px">発注済</button>':'<span style="font-size:12px;color:#10b981;font-weight:600">✅ 発注済</span>') +
+          (!ordered && !delivered ? '<button onclick="markAlertOrdered(\''+esc(r.id)+'\')" style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#10b981;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:12px">発注済</button>' : '') +
+          (ordered && !delivered ? '<button onclick="markAlertDelivered(\''+esc(r.id)+'\')" style="background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:#818cf8;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:12px">納品確認</button>' : '') +
           '<button onclick="deleteConstructionAlert(\''+esc(r.id)+'\')" style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:12px">削除</button>' +
           '</div></div>';
       }).join('') + '</div>';
@@ -2183,11 +2249,12 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     var name = document.getElementById('om-name-m').value.trim();
     var cat = document.getElementById('om-cat-m').value.trim();
     var lt = parseInt(document.getElementById('om-lt-m').value);
+    var price = parseInt(document.getElementById('om-price-m').value) || 0;
     if (!name || !lt) { alert('品目名とリードタイムは必須です'); return; }
     try {
-      await apiCall('POST', '/api/v1/client/order-master', {name:name, category:cat, lead_time_days:lt});
+      await apiCall('POST', '/api/v1/client/order-master', {name:name, category:cat, lead_time_days:lt, unit_price:price});
       document.getElementById('order-master-form-m').style.display = 'none';
-      ['om-name-m','om-cat-m','om-lt-m'].forEach(function(id){document.getElementById(id).value='';});
+      ['om-name-m','om-cat-m','om-lt-m','om-price-m'].forEach(function(id){document.getElementById(id).value='';});
       if (typeof showToast==='function') showToast('品目を登録しました');
       await loadOrderMaster();
     } catch(e) { if (typeof showToast==='function') showToast('登録失敗: '+e.message); }
@@ -2207,13 +2274,14 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     var date = document.getElementById('ca-date-m').value;
     var itemId = document.getElementById('ca-item-m').value;
     var room = document.getElementById('ca-room-m').value.trim();
+    var amount = parseInt(document.getElementById('ca-amount-m').value) || 0;
     if (!name || !date || !itemId || !room) { alert('現場名・着工日・発注品目・LINEルーム名は必須です'); return; }
     try {
       await apiCall('POST', '/api/v1/client/construction-alerts', {
-        project_name:name, construction_date:date, order_item_id:itemId, lineworks_room:room
+        project_name:name, construction_date:date, order_item_id:itemId, lineworks_room:room, order_amount:amount
       });
       document.getElementById('construction-alert-form-m').style.display = 'none';
-      ['ca-name-m','ca-date-m','ca-room-m'].forEach(function(id){document.getElementById(id).value='';});
+      ['ca-name-m','ca-date-m','ca-room-m','ca-amount-m'].forEach(function(id){document.getElementById(id).value='';});
       document.getElementById('ca-item-m').value = '';
       if (typeof showToast==='function') showToast('着工アラートを登録しました');
       await loadConstructionAlerts();
@@ -2226,6 +2294,37 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       if (typeof showToast==='function') showToast('発注済みにしました');
       await loadConstructionAlerts();
     } catch(e) { if (typeof showToast==='function') showToast('更新失敗: '+e.message); }
+  };
+
+  window.markAlertDelivered = async function(id) {
+    try {
+      await apiCall('PATCH', '/api/v1/client/construction-alerts/'+id, {status:'delivered', delivered_at: new Date().toISOString().slice(0,10)});
+      if (typeof showToast==='function') showToast('納品確認しました');
+      await loadConstructionAlerts();
+    } catch(e) { if (typeof showToast==='function') showToast('更新失敗: '+e.message); }
+  };
+
+  window.toggleRoutineForm = function() {
+    var el = document.getElementById('routine-form-m');
+    el.style.display = el.style.display === 'none' ? '' : 'none';
+  };
+
+  window.applyProjectRoutine = async function() {
+    var name = document.getElementById('rt-name-m').value.trim();
+    var date = document.getElementById('rt-date-m').value;
+    var room = document.getElementById('rt-room-m').value.trim();
+    var days = parseInt(document.getElementById('rt-days-m').value) || 3;
+    if (!name || !date || !room) { alert('現場名・着工日・LINEルーム名は必須です'); return; }
+    try {
+      var res = await apiCall('POST', '/api/v1/client/project-routines/apply', {
+        project_name:name, construction_date:date, lineworks_room:room, alert_days_before:days
+      });
+      document.getElementById('routine-form-m').style.display = 'none';
+      ['rt-name-m','rt-date-m','rt-room-m'].forEach(function(id){document.getElementById(id).value='';});
+      document.getElementById('rt-days-m').value = '3';
+      if (typeof showToast==='function') showToast('17工程を展開しました（期限アラートに追加）');
+      await loadDeadlineAlerts();
+    } catch(e) { if (typeof showToast==='function') showToast('展開失敗: '+e.message); }
   };
 
   window.deleteConstructionAlert = async function(id) {
