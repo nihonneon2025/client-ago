@@ -1828,6 +1828,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     }
   };
 
+  var ALL_VIEWS = ['dashboard-view','customer-view','monthly-view','projects-view','line-view','accounting-view','instructions-view','attendance-view','schedule-view','detail-view'];
   var _origSwitchTab = null;
   function patchSwitchTab() {
     if (typeof switchTab === 'function' && switchTab !== _patchedSwitchTab) {
@@ -1838,6 +1839,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
   function _patchedSwitchTab(name) {
     var sv = document.getElementById('staff-view');
     if (name === 'staff') {
+      ALL_VIEWS.forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display='none'; });
       if (sv) sv.style.display = 'block';
       document.querySelectorAll('.sb-item').forEach(function(e){e.classList.remove('active');});
       var s = document.querySelector('.sb-item[data-tab="staff"]');
