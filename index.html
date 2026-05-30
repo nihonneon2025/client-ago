@@ -618,6 +618,8 @@ header{margin-left:var(--sb-w)}
     <button class="sb-item" data-tab="instructions" onclick="switchTab('instructions')"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg><span>指示</span></button>
     <button class="sb-item" data-tab="staff" onclick="switchTab('staff')"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg><span>スタッフ</span></button>
     <button class="sb-item" data-tab="alerts" onclick="switchTab('alerts')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span>発注アラート</span></button>
+    <button class="sb-item" data-tab="recurring" onclick="switchTab('recurring')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg><span>定期タスク</span></button>
+    <button class="sb-item" data-tab="manuals" onclick="switchTab('manuals')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="12" y1="6" x2="16" y2="6"/><line x1="12" y1="10" x2="16" y2="10"/><line x1="12" y1="14" x2="16" y2="14"/></svg><span>施工マニュアル</span></button>
   </div>
 </nav>
 <div id="sb-overlay" onclick="document.getElementById('sidebar-nav').classList.remove('open');this.classList.remove('open')"></div>
@@ -828,6 +830,7 @@ header{margin-left:var(--sb-w)}
     <button class="acc-sub-btn" id="acc-sub-invoices" onclick="switchAccSub('invoices')">📄 請求書</button>
     <button class="acc-sub-btn" id="acc-sub-po" onclick="switchAccSub('po')">📋 発注書</button>
     <button class="acc-sub-btn" id="acc-sub-expenses" onclick="switchAccSub('expenses')">💸 経費</button>
+    <button class="acc-sub-btn" id="acc-sub-profit" onclick="switchAccSub('profit')">📈 原価・利益率</button>
   </div>
 
   <!-- 収支サマリー -->
@@ -882,6 +885,150 @@ header{margin-left:var(--sb-w)}
       <input class="form-input" id="acc-expense-month" type="month" onchange="loadExpenses()" style="max-width:160px">
     </div>
     <div class="acc-list" id="acc-expenses-list"></div>
+  </div>
+
+  <!-- 原価・利益率 -->
+  <div id="acc-profit-view" style="display:none">
+    <div style="padding:12px 16px 8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <span style="font-size:13px;color:var(--muted);font-weight:600">案件別 原価・利益率</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="form-input" id="acc-profit-month" type="month" style="max-width:150px" onchange="loadProfitSummary()">
+        <button class="btn-secondary" style="padding:6px 12px;font-size:12px" onclick="showCostModal()">＋ 原価登録</button>
+      </div>
+    </div>
+    <div id="acc-profit-list" style="padding:0 16px 16px"></div>
+  </div>
+</div>
+
+<!-- 定期タスク View -->
+<div id="recurring-view" style="display:none;padding:16px 16px 100px">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:14px;font-weight:600">🔁 定期タスク管理</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">毎日・毎週・毎月の固定作業を登録。設定時刻にLINEで自動リマインド</div>
+      </div>
+      <button class="btn-secondary" style="padding:4px 12px;font-size:12px" onclick="toggleRecurringForm()">＋ 登録</button>
+    </div>
+    <div id="recurring-form" style="display:none;padding:14px 16px;background:var(--bg);border-bottom:1px solid var(--border)">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">タスク名 <span style="color:#ef4444">*</span></div>
+          <input id="rt-title" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: 週次報告書作成">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">繰り返し種別</div>
+          <select id="rt-type" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" onchange="updateRecurringDayOptions()">
+            <option value="daily">毎日</option>
+            <option value="weekly" selected>毎週</option>
+            <option value="monthly">毎月</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px" id="rt-day-label">曜日</div>
+          <select id="rt-day" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
+            <option value="0">月曜日</option>
+            <option value="1">火曜日</option>
+            <option value="2">水曜日</option>
+            <option value="3">木曜日</option>
+            <option value="4">金曜日</option>
+            <option value="5">土曜日</option>
+            <option value="6">日曜日</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">通知時刻</div>
+          <input id="rt-time" type="time" value="08:00" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">LINEルーム名 <span style="color:#ef4444">*</span></div>
+          <input id="rt-room" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: AI事業">
+        </div>
+      </div>
+      <div style="text-align:right">
+        <button class="btn-secondary" style="padding:6px 14px;font-size:13px;margin-right:6px" onclick="toggleRecurringForm()">キャンセル</button>
+        <button class="btn-primary" style="padding:6px 14px;font-size:13px" onclick="saveRecurringTask()">登録</button>
+      </div>
+    </div>
+    <div id="recurring-list"></div>
+  </div>
+</div>
+
+<!-- 施工マニュアル View -->
+<div id="manuals-view" style="display:none;padding:16px 16px 100px">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input id="manual-search" style="flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)" placeholder="🔍 キーワード検索（工種・工具・トラブル）" oninput="searchManuals()">
+      <select id="manual-category-filter" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)" onchange="searchManuals()">
+        <option value="">全カテゴリ</option>
+        <option value="工種">工種</option>
+        <option value="工具">工具</option>
+        <option value="トラブル">トラブル</option>
+        <option value="その他">その他</option>
+      </select>
+      <button class="btn-secondary" style="padding:8px 14px;font-size:13px" onclick="showManualAiForm()">🤖 AI生成</button>
+      <button class="btn-primary" style="padding:8px 14px;font-size:13px" onclick="showManualEditForm(null)">＋ 手動追加</button>
+    </div>
+    <div id="manual-ai-form" style="display:none;padding:14px 16px;background:var(--bg);border-bottom:1px solid var(--border)">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">AIに施工マニュアルを自動作成させます</div>
+      <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:end">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">テーマ（例: 外壁サイン取付け・高所作業車の使い方）</div>
+          <input id="manual-ai-topic" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: アルミフレームの溶接手順">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">カテゴリ</div>
+          <select id="manual-ai-category" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
+            <option value="工種">工種</option>
+            <option value="工具">工具</option>
+            <option value="トラブル">トラブル</option>
+            <option value="その他">その他</option>
+          </select>
+        </div>
+        <button class="btn-primary" style="padding:8px 16px;font-size:13px" onclick="generateManual()">生成</button>
+      </div>
+      <div id="manual-ai-result" style="display:none;margin-top:12px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">生成結果（編集してから保存してください）</div>
+        <textarea id="manual-ai-content" style="width:100%;height:200px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--surface);color:var(--text);resize:vertical"></textarea>
+        <div style="text-align:right;margin-top:8px">
+          <button class="btn-secondary" style="padding:6px 12px;font-size:12px;margin-right:6px" onclick="document.getElementById('manual-ai-form').style.display='none'">閉じる</button>
+          <button class="btn-primary" style="padding:6px 12px;font-size:12px" onclick="saveGeneratedManual()">マニュアルとして保存</button>
+        </div>
+      </div>
+    </div>
+    <div id="manual-edit-form" style="display:none;padding:14px 16px;background:var(--bg);border-bottom:1px solid var(--border)">
+      <input type="hidden" id="manual-edit-id">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">タイトル <span style="color:#ef4444">*</span></div>
+          <input id="manual-edit-title" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: 外壁サイン取付け手順">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">カテゴリ</div>
+          <select id="manual-edit-category" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
+            <option value="工種">工種</option>
+            <option value="工具">工具</option>
+            <option value="トラブル">トラブル</option>
+            <option value="その他">その他</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">タグ（カンマ区切り）</div>
+        <input id="manual-edit-tags" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: 溶接,アルミ,安全帯">
+      </div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">内容</div>
+        <textarea id="manual-edit-content" style="width:100%;height:160px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--surface);color:var(--text);resize:vertical" placeholder="手順・注意事項・ポイントを記載"></textarea>
+      </div>
+      <div style="text-align:right">
+        <button class="btn-secondary" style="padding:6px 14px;font-size:13px;margin-right:6px" onclick="document.getElementById('manual-edit-form').style.display='none'">キャンセル</button>
+        <button class="btn-primary" style="padding:6px 14px;font-size:13px" onclick="saveManual()">保存</button>
+      </div>
+    </div>
+    <div id="manual-list" style="min-height:100px"></div>
   </div>
 </div>
 
@@ -2102,6 +2249,368 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     await loadProjectRoutines();
   };
 
+  // ── C-10 定期タスク ──────────────────────────────────────────────────────
+  window.toggleRecurringForm = function() {
+    var el = document.getElementById('recurring-form');
+    el.style.display = el.style.display === 'none' ? '' : 'none';
+    if (el.style.display !== 'none') document.getElementById('rt-title').focus();
+  };
+
+  window.updateRecurringDayOptions = function() {
+    var type = document.getElementById('rt-type').value;
+    var lbl = document.getElementById('rt-day-label');
+    var sel = document.getElementById('rt-day');
+    if (type === 'daily') {
+      sel.style.display = 'none'; lbl.textContent = '（毎日）';
+    } else if (type === 'weekly') {
+      sel.style.display = '';
+      lbl.textContent = '曜日';
+      sel.innerHTML = ['月','火','水','木','金','土','日'].map(function(d,i){
+        return '<option value="'+i+'">'+d+'曜日</option>';
+      }).join('');
+    } else {
+      sel.style.display = '';
+      lbl.textContent = '日付';
+      sel.innerHTML = Array.from({length:31},function(_,i){
+        return '<option value="'+(i+1)+'">'+(i+1)+'日</option>';
+      }).join('');
+    }
+  };
+
+  window.saveRecurringTask = async function() {
+    var title = document.getElementById('rt-title').value.trim();
+    var type = document.getElementById('rt-type').value;
+    var day = parseInt(document.getElementById('rt-day').value) || 0;
+    var time = document.getElementById('rt-time').value || '08:00';
+    var room = document.getElementById('rt-room').value.trim();
+    if (!title || !room) { alert('タスク名とLINEルーム名は必須です'); return; }
+    try {
+      await apiCall('POST', '/api/v1/client/recurring-tasks', {
+        title: title, recurrence_type: type, recurrence_day: day,
+        notify_time: time, lineworks_room: room
+      });
+      document.getElementById('recurring-form').style.display = 'none';
+      ['rt-title','rt-room'].forEach(function(id){ document.getElementById(id).value=''; });
+      if (typeof showToast==='function') showToast('定期タスクを登録しました');
+      await loadRecurringTasks();
+    } catch(e) { if (typeof showToast==='function') showToast('登録失敗: '+e.message); }
+  };
+
+  window.toggleRecurringEnabled = async function(id, val) {
+    try {
+      await apiCall('PATCH', '/api/v1/client/recurring-tasks/'+id, {enabled: val ? 1 : 0});
+      await loadRecurringTasks();
+    } catch(e) {}
+  };
+
+  window.deleteRecurringTask = async function(id) {
+    if (!confirm('この定期タスクを削除しますか？')) return;
+    try {
+      await apiCall('DELETE', '/api/v1/client/recurring-tasks/'+id);
+      if (typeof showToast==='function') showToast('削除しました');
+      await loadRecurringTasks();
+    } catch(e) {}
+  };
+
+  async function loadRecurringTasks() {
+    var el = document.getElementById('recurring-list');
+    if (!el) return;
+    try {
+      var rows = await apiCall('GET', '/api/v1/client/recurring-tasks');
+      if (!rows.length) {
+        el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">登録済みの定期タスクはありません</div>';
+        return;
+      }
+      var typeLabel = {daily:'毎日', weekly:'毎週', monthly:'毎月'};
+      var dayNames = ['月','火','水','木','金','土','日'];
+      el.innerHTML = rows.map(function(r) {
+        var rt = r.recurrence_type;
+        var rd = r.recurrence_day;
+        var dayStr = rt==='daily' ? '毎日' :
+          rt==='weekly' ? dayNames[rd]+'曜日' :
+          '毎月'+rd+'日';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)">'
+          + '<label style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0">'
+          + '<input type="checkbox"'+(r.enabled?' checked':'')
+          + ' onchange="toggleRecurringEnabled(\''+r.id+'\',this.checked)"'
+          + ' style="opacity:0;width:0;height:0">'
+          + '<span style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:'+(r.enabled?'#6366f1':'#ccc')+';border-radius:10px;transition:.2s">'
+          + '<span style="position:absolute;content:\'\';height:14px;width:14px;left:'+(r.enabled?'18px':'3px')+';bottom:3px;background:#fff;border-radius:50%;transition:.2s"></span></span></label>'
+          + '<div style="flex:1">'
+          + '<div style="font-size:13px;font-weight:600'+(r.enabled?'':';color:var(--muted)')+'">'+r.title+'</div>'
+          + '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+dayStr+' '+r.notify_time+' 通知　LINE: '+r.lineworks_room+'</div>'
+          + '</div>'
+          + '<button onclick="deleteRecurringTask(\''+r.id+'\')" style="padding:4px 10px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--muted);cursor:pointer">削除</button>'
+          + '</div>';
+      }).join('');
+    } catch(e) {
+      el.innerHTML = '<div style="padding:16px;color:#ef4444;font-size:13px">読み込みエラー</div>';
+    }
+  }
+
+  window.initRecurringView = async function() {
+    await loadRecurringTasks();
+  };
+
+  // ── #21 原価・利益率 ───────────────────────────────────────────────────
+  window.showCostModal = function() {
+    var month = document.getElementById('acc-profit-month').value;
+    var modal = document.createElement('div');
+    modal.id = 'cost-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999';
+    modal.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:20px;width:min(420px,92vw)">'
+      + '<div style="font-size:14px;font-weight:600;margin-bottom:14px">原価登録</div>'
+      + '<div style="display:grid;gap:10px">'
+      + '<div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">案件名 *</div>'
+      + '<input id="cost-project" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)" placeholder="例: 渋谷ビルサイン工事"></div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+      + '<div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">種別 *</div>'
+      + '<select id="cost-type" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)">'
+      + '<option value="labor">人工費</option><option value="subcontract">下請代</option>'
+      + '<option value="material">材料費</option><option value="other">その他</option></select></div>'
+      + '<div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">金額（円） *</div>'
+      + '<input id="cost-amount" type="number" min="0" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)" placeholder="0"></div></div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+      + '<div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">日付 *</div>'
+      + '<input id="cost-date" type="date" value="'+(month?month+'-01':'')
+      + '" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)"></div>'
+      + '<div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">メモ</div>'
+      + '<input id="cost-memo" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text)" placeholder="任意"></div></div>'
+      + '</div>'
+      + '<div style="text-align:right;margin-top:14px">'
+      + '<button style="padding:6px 14px;font-size:13px;border:1px solid var(--border);border-radius:8px;background:transparent;cursor:pointer;margin-right:8px" onclick="document.getElementById(\'cost-modal\').remove()">キャンセル</button>'
+      + '<button class="btn-primary" style="padding:6px 14px;font-size:13px" onclick="saveCost()">登録</button>'
+      + '</div></div>';
+    document.body.appendChild(modal);
+  };
+
+  window.saveCost = async function() {
+    var project = document.getElementById('cost-project').value.trim();
+    var type = document.getElementById('cost-type').value;
+    var amount = parseInt(document.getElementById('cost-amount').value) || 0;
+    var date = document.getElementById('cost-date').value;
+    var memo = document.getElementById('cost-memo').value.trim();
+    if (!project || !date) { alert('案件名と日付は必須です'); return; }
+    try {
+      await apiCall('POST', '/api/v1/client/project-costs', {
+        project_name:project, cost_type:type, amount:amount, date:date, memo:memo
+      });
+      document.getElementById('cost-modal').remove();
+      if (typeof showToast==='function') showToast('原価を登録しました');
+      await loadProfitSummary();
+    } catch(e) { if (typeof showToast==='function') showToast('登録失敗: '+e.message); }
+  };
+
+  window.loadProfitSummary = async function() {
+    var el = document.getElementById('acc-profit-list');
+    if (!el) return;
+    var month = (document.getElementById('acc-profit-month') || {}).value || '';
+    try {
+      var params = month ? '?month='+month : '';
+      var rows = await apiCall('GET', '/api/v1/client/project-costs/summary'+params);
+      if (!rows.length) {
+        el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">原価データがありません。＋原価登録から入力してください</div>';
+        return;
+      }
+      var typeLabel = {labor:'人工費', subcontract:'下請代', material:'材料費', other:'その他'};
+      el.innerHTML = rows.map(function(r) {
+        var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden">'
+          + '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'
+          + '<div style="font-size:13px;font-weight:600">'+r.project_name+'</div>'
+          + '<div style="font-size:12px;color:var(--muted)">原価合計: ¥'+(r.total_cost||0).toLocaleString()+'</div>'
+          + '</div>'
+          + '<div style="padding:10px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px">';
+        ['labor','subcontract','material','other'].forEach(function(k){
+          html += '<div style="text-align:center">'
+            + '<div style="font-size:10px;color:var(--muted)">'+typeLabel[k]+'</div>'
+            + '<div style="font-size:13px;font-weight:600">¥'+(r[k]||0).toLocaleString()+'</div>'
+            + '</div>';
+        });
+        html += '</div></div>';
+        return html;
+      }).join('');
+    } catch(e) {
+      el.innerHTML = '<div style="padding:16px;color:#ef4444;font-size:13px">読み込みエラー</div>';
+    }
+  };
+
+  // ── C-17 施工マニュアル ───────────────────────────────────────────────
+  window.showManualAiForm = function() {
+    var f = document.getElementById('manual-ai-form');
+    f.style.display = f.style.display === 'none' ? '' : 'none';
+    document.getElementById('manual-edit-form').style.display = 'none';
+    if (f.style.display !== 'none') document.getElementById('manual-ai-topic').focus();
+  };
+
+  window.showManualEditForm = function(data) {
+    document.getElementById('manual-ai-form').style.display = 'none';
+    var f = document.getElementById('manual-edit-form');
+    f.style.display = '';
+    document.getElementById('manual-edit-id').value = data ? data.id : '';
+    document.getElementById('manual-edit-title').value = data ? data.title : '';
+    document.getElementById('manual-edit-category').value = data ? data.category : '工種';
+    document.getElementById('manual-edit-tags').value = data ? data.tags : '';
+    document.getElementById('manual-edit-content').value = data ? data.content : '';
+    document.getElementById('manual-edit-title').focus();
+  };
+
+  window.generateManual = async function() {
+    var topic = document.getElementById('manual-ai-topic').value.trim();
+    var category = document.getElementById('manual-ai-category').value;
+    if (!topic) { alert('テーマを入力してください'); return; }
+    var btn = event.target;
+    btn.textContent = '生成中...'; btn.disabled = true;
+    try {
+      var res = await apiCall('POST', '/api/v1/client/manuals/generate', {topic:topic, category:category});
+      document.getElementById('manual-ai-content').value = res.content;
+      document.getElementById('manual-ai-result').style.display = '';
+    } catch(e) {
+      if (typeof showToast==='function') showToast('生成失敗: '+e.message);
+    } finally {
+      btn.textContent = '生成'; btn.disabled = false;
+    }
+  };
+
+  window.saveGeneratedManual = async function() {
+    var topic = document.getElementById('manual-ai-topic').value.trim();
+    var category = document.getElementById('manual-ai-category').value;
+    var content = document.getElementById('manual-ai-content').value.trim();
+    if (!content) return;
+    try {
+      await apiCall('POST', '/api/v1/client/manuals', {title:topic, category:category, content:content});
+      document.getElementById('manual-ai-form').style.display = 'none';
+      document.getElementById('manual-ai-topic').value = '';
+      document.getElementById('manual-ai-content').value = '';
+      document.getElementById('manual-ai-result').style.display = 'none';
+      if (typeof showToast==='function') showToast('マニュアルを保存しました');
+      await loadManuals();
+    } catch(e) { if (typeof showToast==='function') showToast('保存失敗: '+e.message); }
+  };
+
+  window.saveManual = async function() {
+    var id = document.getElementById('manual-edit-id').value;
+    var title = document.getElementById('manual-edit-title').value.trim();
+    var category = document.getElementById('manual-edit-category').value;
+    var tags = document.getElementById('manual-edit-tags').value.trim();
+    var content = document.getElementById('manual-edit-content').value.trim();
+    if (!title) { alert('タイトルは必須です'); return; }
+    try {
+      if (id) {
+        await apiCall('PATCH', '/api/v1/client/manuals/'+id, {title:title, category:category, tags:tags, content:content});
+      } else {
+        await apiCall('POST', '/api/v1/client/manuals', {title:title, category:category, tags:tags, content:content});
+      }
+      document.getElementById('manual-edit-form').style.display = 'none';
+      if (typeof showToast==='function') showToast('保存しました');
+      await loadManuals();
+    } catch(e) { if (typeof showToast==='function') showToast('保存失敗: '+e.message); }
+  };
+
+  window.deleteManual = async function(id) {
+    if (!confirm('このマニュアルを削除しますか？')) return;
+    try {
+      await apiCall('DELETE', '/api/v1/client/manuals/'+id);
+      if (typeof showToast==='function') showToast('削除しました');
+      await loadManuals();
+    } catch(e) {}
+  };
+
+  var _manualSearchTimer = null;
+  window.searchManuals = function() {
+    clearTimeout(_manualSearchTimer);
+    _manualSearchTimer = setTimeout(loadManuals, 300);
+  };
+
+  var _manualsCache = [];
+
+  async function loadManuals() {
+    var el = document.getElementById('manual-list');
+    if (!el) return;
+    var q = (document.getElementById('manual-search') || {}).value || '';
+    var cat = (document.getElementById('manual-category-filter') || {}).value || '';
+    var params = [];
+    if (q) params.push('q='+encodeURIComponent(q));
+    if (cat) params.push('category='+encodeURIComponent(cat));
+    var qs = params.length ? '?'+params.join('&') : '';
+    try {
+      var rows = await apiCall('GET', '/api/v1/client/manuals'+qs);
+      _manualsCache = rows;
+      if (!rows.length) {
+        el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">'+(q||cat?'検索結果がありません':'マニュアルがまだありません。AI生成または手動追加で登録してください')+'</div>';
+        return;
+      }
+      var catColors = {'工種':'#3b82f6','工具':'#10b981','トラブル':'#ef4444','その他':'#8b5cf6'};
+      el.innerHTML = rows.map(function(r) {
+        var color = catColors[r.category] || '#6366f1';
+        var preview = r.content ? r.content.slice(0,80).replace(/\n/g,' ')+'...' : '';
+        var tags = r.tags ? r.tags.split(',').filter(Boolean).map(function(t){
+          return '<span style="font-size:10px;background:rgba(99,102,241,.1);color:#6366f1;padding:1px 6px;border-radius:4px">'+t.trim()+'</span>';
+        }).join(' ') : '';
+        return '<div style="padding:12px 16px;border-bottom:1px solid var(--border)">'
+          + '<div style="display:flex;align-items:start;justify-content:space-between;gap:8px">'
+          + '<div style="flex:1">'
+          + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
+          + '<span style="font-size:10px;font-weight:600;color:#fff;background:'+color+';padding:1px 7px;border-radius:4px">'+r.category+'</span>'
+          + '<span style="font-size:13px;font-weight:600">'+r.title+'</span></div>'
+          + (tags ? '<div style="margin-bottom:4px">'+tags+'</div>' : '')
+          + (preview ? '<div style="font-size:11px;color:var(--muted)">'+preview+'</div>' : '')
+          + '</div>'
+          + '<div style="display:flex;gap:4px;flex-shrink:0">'
+          + '<button data-mid="'+r.id+'" class="mn-show-btn" style="padding:4px 8px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:transparent;cursor:pointer">表示</button>'
+          + '<button data-mid="'+r.id+'" class="mn-edit-btn" style="padding:4px 8px;font-size:11px;border:1px solid var(--border);border-radius:6px;background:transparent;cursor:pointer">編集</button>'
+          + '<button data-mid="'+r.id+'" class="mn-del-btn" style="padding:4px 8px;font-size:11px;border:1px solid #fee2e2;border-radius:6px;background:#fef2f2;color:#ef4444;cursor:pointer">削除</button>'
+          + '</div></div></div>';
+      }).join('');
+      el.querySelectorAll('.mn-show-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var r = _manualsCache.find(function(m){ return m.id === btn.dataset.mid; });
+          if (r) showManualDetail(r);
+        });
+      });
+      el.querySelectorAll('.mn-edit-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var r = _manualsCache.find(function(m){ return m.id === btn.dataset.mid; });
+          if (r) window.showManualEditForm(r);
+        });
+      });
+      el.querySelectorAll('.mn-del-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() { window.deleteManual(btn.dataset.mid); });
+      });
+    } catch(e) {
+      el.innerHTML = '<div style="padding:16px;color:#ef4444;font-size:13px">読み込みエラー</div>';
+    }
+  }
+
+  window.showManualDetail = function(r) {
+    var existing = document.getElementById('manual-detail-modal');
+    if (existing) existing.remove();
+    var modal = document.createElement('div');
+    modal.id = 'manual-detail-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px';
+    var inner = document.createElement('div');
+    inner.style.cssText = 'background:var(--surface);border-radius:12px;padding:20px;width:min(600px,96vw);max-height:85vh;overflow-y:auto';
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px';
+    header.innerHTML = '<div style="font-size:15px;font-weight:bold">'+r.title+'</div>';
+    var closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'font-size:18px;border:none;background:none;cursor:pointer;color:var(--muted)';
+    closeBtn.onclick = function() { modal.remove(); };
+    header.appendChild(closeBtn);
+    var pre = document.createElement('pre');
+    pre.style.cssText = 'white-space:pre-wrap;font-size:13px;line-height:1.8;color:var(--text);background:var(--bg);padding:14px;border-radius:8px';
+    pre.textContent = r.content;
+    inner.appendChild(header);
+    inner.appendChild(pre);
+    modal.appendChild(inner);
+    document.body.appendChild(modal);
+    modal.addEventListener('click', function(e){ if(e.target===modal) modal.remove(); });
+  };
+
+  window.initManualsView = async function() {
+    await loadManuals();
+  };'
+
   async function loadOrderMaster() {
     var el = document.getElementById('order-master-list-m');
     el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">読み込み中...</div>';
@@ -2457,17 +2966,43 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
   var ALL_VIEWS_ALERTS = ['dashboard-view','customer-view','monthly-view','projects-view','line-view','accounting-view','instructions-view','attendance-view','schedule-view','detail-view','staff-view'];
   var _origSwitchTabAlerts = null;
   var _alertsPatched = false;
+  function _hideExtraViews() {
+    ['alerts-view','recurring-view','manuals-view'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.style.display='none';
+    });
+  }
   function _patchedSwitchTabAlerts(name) {
     var av = document.getElementById('alerts-view');
+    var rv = document.getElementById('recurring-view');
+    var mv = document.getElementById('manuals-view');
     if (name === 'alerts') {
       ALL_VIEWS_ALERTS.forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+      if (rv) rv.style.display='none'; if (mv) mv.style.display='none';
       if (av) av.style.display = 'block';
       document.querySelectorAll('.sb-item').forEach(function(e){e.classList.remove('active');});
       var s = document.querySelector('.sb-item[data-tab="alerts"]');
       if (s) s.classList.add('active');
       window.initAlertsView();
+    } else if (name === 'recurring') {
+      ALL_VIEWS_ALERTS.forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+      if (av) av.style.display='none'; if (mv) mv.style.display='none';
+      if (rv) rv.style.display='block';
+      document.querySelectorAll('.sb-item').forEach(function(e){e.classList.remove('active');});
+      var s2 = document.querySelector('.sb-item[data-tab="recurring"]');
+      if (s2) s2.classList.add('active');
+      window.initRecurringView();
+    } else if (name === 'manuals') {
+      ALL_VIEWS_ALERTS.forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+      if (av) av.style.display='none'; if (rv) rv.style.display='none';
+      if (mv) mv.style.display='block';
+      document.querySelectorAll('.sb-item').forEach(function(e){e.classList.remove('active');});
+      var s3 = document.querySelector('.sb-item[data-tab="manuals"]');
+      if (s3) s3.classList.add('active');
+      window.initManualsView();
     } else {
       if (av) av.style.display = 'none';
+      if (rv) rv.style.display = 'none';
+      if (mv) mv.style.display = 'none';
       if (_origSwitchTabAlerts) _origSwitchTabAlerts(name);
     }
   }
@@ -2480,6 +3015,33 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
   }
   setTimeout(patchSwitchTabAlerts, 300);
   document.addEventListener('DOMContentLoaded', patchSwitchTabAlerts);
+
+  // switchAccSub パッチ（原価・利益率タブを追加）
+  var _origSwitchAccSub = null;
+  var _accSubPatched = false;
+  function patchSwitchAccSub() {
+    if (!_accSubPatched && typeof switchAccSub==='function') {
+      _accSubPatched = true;
+      _origSwitchAccSub = switchAccSub;
+      window.switchAccSub = function(name) {
+        var pv = document.getElementById('acc-profit-view');
+        if (name === 'profit') {
+          ['acc-summary-view','acc-estimates-view','acc-invoices-view','acc-po-view','acc-expenses-view'].forEach(function(id){
+            var el=document.getElementById(id); if(el) el.style.display='none';
+          });
+          if (pv) pv.style.display='';
+          document.querySelectorAll('.acc-sub-btn').forEach(function(e){e.classList.remove('active');});
+          var sb=document.getElementById('acc-sub-profit'); if(sb) sb.classList.add('active');
+          window.loadProfitSummary();
+        } else {
+          if (pv) pv.style.display='none';
+          _origSwitchAccSub(name);
+        }
+      };
+    }
+  }
+  setTimeout(patchSwitchAccSub, 400);
+  document.addEventListener('DOMContentLoaded', patchSwitchAccSub);
 })();
 </script>
 
