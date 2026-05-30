@@ -6,7 +6,7 @@
 // OSバッジカウンター（SW生存期間中に蓄積・クリア時にリセット）
 let _badgeCount = 0;
 
-const CACHE_NAME = 'ago-system-v6';
+const CACHE_NAME = 'ago-system-v7';
 const STATIC_ASSETS = [
   'config.js',
   'manifest.json',
@@ -37,6 +37,18 @@ self.addEventListener('fetch', (event) => {
   // PHPページ（動的）→ 常にネットワークから取得（キャッシュしない）
   if (url.pathname.endsWith('chat.php') || url.pathname.endsWith('agoline-icon.php')) {
     event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // ELVIN API (api.nihon-neon.jp) → 絶対にキャッシュしない。常にネットワーク
+  if (url.hostname === 'api.nihon-neon.jp') {
+    event.respondWith(
+      fetch(event.request).catch(() =>
+        new Response(JSON.stringify([]), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    );
     return;
   }
 
