@@ -2460,50 +2460,33 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
   }
 
   function patchBadges(container) {
-    var entries = loadEntries();
-    // 各行にdata-c11-userを付与（バッジがある行から判定）
-    container.querySelectorAll('tbody tr').forEach(function(tr) {
-      container.querySelectorAll('.sch-cell-entry').forEach(function(span) {
-        if (span.dataset.c11) return;
-        span.dataset.c11 = '1';
-        var m = (span.getAttribute('onclick') || '').match(/\d+/);
-        if (!m) return;
-        var eid = parseInt(m[0]);
-        span.dataset.entryId = m[0];
+    container.querySelectorAll('.sch-cell-entry').forEach(function(span) {
+      if (span.dataset.c11) return;
+      span.dataset.c11 = '1';
+      var m = (span.getAttribute('onclick') || '').match(/\d+/);
+      if (!m) return;
+      var eid = parseInt(m[0]);
+      span.dataset.entryId = m[0];
 
-        // localStorageのentryからstaffを逆引き
-        var entry = entries.find(function(e) { return e.id === eid; });
-        var td = span.closest('td');
-        var uid = (td && td.dataset.userId)
-               || (entry && Array.isArray(entry.staff) && entry.staff[0])
-               || null;
-        if (uid) {
-          span.dataset.fromUser = uid;
-          // 同じ行の全tdにもdata-c11-userを伝播
-          var parentTr = span.closest('tr');
-          if (parentTr) {
-            parentTr.querySelectorAll('td').forEach(function(cell) {
-              if (!cell.dataset.c11User) cell.dataset.c11User = uid;
-            });
-          }
-        }
+      // <tr data-uid="suzuki"> から正しいユーザーIDを取得
+      var tr = span.closest('tr');
+      var uid = tr && tr.dataset.uid;
+      if (uid) span.dataset.fromUser = uid;
 
-        span.draggable = true;
-        span.addEventListener('dragstart', function(ev) {
-          // 行D&Dを物理的に無効化
-          _dragTr = span.closest('tr');
-          if (_dragTr && _dragTr.draggable) _dragTr.draggable = false;
-          ev.stopPropagation();
-          _dragEntryId = eid;
-          _dragFromUser = span.dataset.fromUser || null;
-          _dragEl = span;
-          ev.dataTransfer.effectAllowed = 'move';
-          setTimeout(function() { span.style.opacity = '0.4'; }, 0);
-        });
-        span.addEventListener('dragend', function() {
-          if (_dragTr) { _dragTr.draggable = true; _dragTr = null; }
-          span.style.opacity = '';
-        });
+      span.draggable = true;
+      span.addEventListener('dragstart', function(ev) {
+        _dragTr = tr;
+        if (_dragTr && _dragTr.draggable) _dragTr.draggable = false;
+        ev.stopPropagation();
+        _dragEntryId = eid;
+        _dragFromUser = tr && tr.dataset.uid || null;
+        _dragEl = span;
+        ev.dataTransfer.effectAllowed = 'move';
+        setTimeout(function() { span.style.opacity = '0.4'; }, 0);
+      });
+      span.addEventListener('dragend', function() {
+        if (_dragTr) { _dragTr.draggable = true; _dragTr = null; }
+        span.style.opacity = '';
       });
     });
   }
@@ -2534,11 +2517,8 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
         var cells = Array.from(td.closest('tr').cells);
         return dateFromHeader(container, cells.indexOf(td));
       })();
-      var toUser = td.dataset.userId || td.dataset.c11User
-               || (function() {
-                    var b = td.closest('tr').querySelector('.sch-cell-entry[data-from-user]');
-                    return b ? b.dataset.fromUser : null;
-                  })();
+      // <tr data-uid> からドロップ先ユーザーIDを取得
+      var toUser = td.closest('tr').dataset.uid || null;
 
       var key = findSchKey();
       if (!key) return;
