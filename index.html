@@ -2737,43 +2737,47 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       if (_c12DayOff !== 0) setTimeout(applyDayOffset, 0);
     }).observe(ov, {childList: true});
 
-    // ドラッグ操作（ドラッグ中はテーブルが物理的に追従、離したらスナップ）
-    var _sx = null, _startOff = 0, _pendingOff = 0, _dragging = false;
+    // ドラッグ操作（スタッフ列は固定・日付列のみ追従してスナップ）
+    var _sx = null, _startOff = 0, _pendingOff = 0, _dragging = false, _dragCells = null;
 
     function pxPerDay() {
-      // 列幅を動的に取得（デフォルト80px）
       var th = ov.querySelector('thead th:nth-child(2)');
       return th ? Math.max(th.offsetWidth, 60) : 80;
     }
 
-    function getTable() { return ov.querySelector('table'); }
-
     function onStart(x) {
       if (_dragging) return;
       _sx = x; _startOff = _c12DayOff; _pendingOff = _c12DayOff; _dragging = true;
-      var t = getTable(); if (t) { t.style.transition = 'none'; t.style.userSelect = 'none'; }
+      // スタッフ列（first-child / .staff-name）を除いた日付セルのみキャッシュ
+      _dragCells = Array.from(ov.querySelectorAll(
+        'thead th:not(:first-child), tbody td:not(.staff-name)'
+      ));
+      _dragCells.forEach(function(c) { c.style.transition = 'none'; c.style.userSelect = 'none'; });
     }
     function onMove(x) {
-      if (!_dragging || _sx === null) return;
+      if (!_dragging || !_dragCells) return;
       var dx = x - _sx;
-      var t = getTable();
-      if (t) t.style.transform = 'translateX(' + dx + 'px)';
+      _dragCells.forEach(function(c) { c.style.transform = 'translateX(' + dx + 'px)'; });
       _pendingOff = _startOff - Math.round(dx / pxPerDay());
     }
     function onEnd() {
       if (!_dragging) return;
       _dragging = false; _sx = null;
-      var t = getTable();
-      if (!t) { _c12DayOff = _pendingOff; applyDayOffset(); return; }
-      // スナップアニメーション
-      t.style.transition = 'transform 0.18s ease';
-      t.style.transform = 'translateX(0)';
-      t.style.userSelect = '';
       _c12DayOff = _pendingOff;
-      setTimeout(function() {
-        t.style.transition = ''; t.style.transform = '';
+      if (_dragCells) {
+        _dragCells.forEach(function(c) {
+          c.style.transition = 'transform 0.18s ease';
+          c.style.transform = 'translateX(0)';
+          c.style.userSelect = '';
+        });
+        var cells = _dragCells; _dragCells = null;
+        setTimeout(function() {
+          cells.forEach(function(c) { c.style.transition = ''; c.style.transform = ''; });
+          applyDayOffset();
+        }, 180);
+      } else {
         applyDayOffset();
-      }, 180);
+      }
     }
 
     ov.addEventListener('mousedown',  function(ev) { if (!ev.target.closest('.sch-cell-entry')) onStart(ev.clientX); });
