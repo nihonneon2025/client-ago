@@ -393,11 +393,12 @@ if (!empty($deferred)) {
                 'agent_id'  => 'ago_001_b6ee06c9',
                 'type'      => 'ELVIN_task',
                 'payload'   => [
-                    'prompt'         => $prompt,
-                    'requester_id'   => $gid ?? $uid,
-                    'requester_name' => $sender,
-                    'log_id'         => $entry['id'] ?? null,
-                    'recent_context' => '',
+                    'prompt'             => $prompt,
+                    'requester_id'       => $gid ?? $uid,
+                    'requester_name'     => $sender,
+                    'log_id'             => $entry['id'] ?? null,
+                    'recent_context'     => '',
+                    'line_channel_token' => $LINE_CHANNEL_TOKEN,
                 ],
             ]);
             $ch = curl_init('https://api.nihon-neon.jp/api/v1/tasks');

@@ -762,11 +762,12 @@ function execute_action($action, $userId, $users_map, $ts, $line_token = '', $ka
                 'client_id' => 'ago_001',
                 'type'      => 'ELVIN_task',
                 'payload'   => [
-                    'prompt'         => $prompt,
-                    'requester_id'   => $reply_target,
-                    'requester_name' => $sender_name,
-                    'log_id'         => $log_id,
-                    'recent_context' => $recent_context,
+                    'prompt'             => $prompt,
+                    'requester_id'       => $reply_target,
+                    'requester_name'     => $sender_name,
+                    'log_id'             => $log_id,
+                    'recent_context'     => $recent_context,
+                    'line_channel_token' => $line_token,
                 ],
             ]);
             $ch = curl_init($bt_url);
