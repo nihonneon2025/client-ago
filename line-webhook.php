@@ -139,14 +139,17 @@ foreach ($events as $event) {
             }
             if ($q_fname || in_array($q_type, ['file', 'image', 'video'])) {
                 $fname = $q_fname ?? ($q_type === 'image' ? $quoted_id . '.jpg' : $quoted_id . '.bin');
-                // 画像の場合はbase64でタスクに直接埋め込む（URLが非公開のため）
+                // 画像の場合はserve-file.php経由のURLで渡す（b64は大きすぎてLINE AI経由で渡せない）
                 if ($q_type === 'image') {
-                    $b64 = get_line_file_b64($quoted_id, $LINE_CHANNEL_TOKEN);
-                    if ($b64) {
-                        $quoted_text = '[IMAGE_B64:' . $b64 . ']';
-                        wh_log('[QUOTE_DL] image→base64 len=' . strlen($b64));
+                    $mc_img = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
+                    $cached_img = $mc_img[$quoted_id] ?? null;
+                    if ($cached_img && !empty($cached_img['url'])) {
+                        $img_filename = basename(parse_url($cached_img['url'], PHP_URL_PATH));
+                        $serve_url = 'https://' . $_SERVER['HTTP_HOST'] . '/serve-file.php?f=' . urlencode($img_filename);
+                        $quoted_text = '[IMAGE_URL: ' . $serve_url . ']';
+                        wh_log('[QUOTE_DL] image serve_url=' . $serve_url);
                     } else {
-                        wh_log('[QUOTE_DL] FAIL image b64 id=' . $quoted_id);
+                        wh_log('[QUOTE_DL] FAIL image no cache for id=' . $quoted_id);
                     }
                 } else {
                     $url = save_line_file($quoted_id, $LINE_CHANNEL_TOKEN, $fname);
