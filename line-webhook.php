@@ -128,6 +128,15 @@ foreach ($events as $event) {
             $q_fname = $q['fileName'] ?? null;
             $q_type  = $q['type'] ?? '';
             wh_log('[QUOTE_OBJ] keys=' . implode(',', array_keys($q)) . ' type=' . $q_type . ' fname=' . ($q_fname ?? 'none'));
+            // LINEがquoteオブジェクトにtypeを含めない場合、キャッシュから補完
+            if (!$q_type && !$q_fname) {
+                $mc_tmp = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
+                if (!empty($mc_tmp[$quoted_id])) {
+                    $q_type  = $mc_tmp[$quoted_id]['type']     ?? '';
+                    $q_fname = $mc_tmp[$quoted_id]['filename'] ?? null;
+                    wh_log('[QUOTE_TYPE_FROM_CACHE] id=' . $quoted_id . ' type=' . $q_type . ' fname=' . ($q_fname ?? 'none'));
+                }
+            }
             if ($q_fname || in_array($q_type, ['file', 'image', 'video'])) {
                 $fname = $q_fname ?? ($q_type === 'image' ? $quoted_id . '.jpg' : $quoted_id . '.bin');
                 // 画像の場合はbase64でタスクに直接埋め込む（URLが非公開のため）
