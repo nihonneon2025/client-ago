@@ -2382,6 +2382,8 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       + '<button class="btn-primary" style="padding:6px 14px;font-size:13px" onclick="saveCost()">登録</button>'
       + '</div></div>';
     document.body.appendChild(modal);
+    window.attachMicButton(document.getElementById('cost-project'), '案件名');
+    window.attachMicButton(document.getElementById('cost-memo'), '原価メモ');
   };
 
   window.saveCost = async function() {
@@ -3636,6 +3638,157 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
         if (!loginModal.classList.contains('show')) _goSchedule(200);
       }).observe(loginModal, {attributes: true, attributeFilter: ['class']});
     }
+  });
+})();
+</script>
+
+<!-- ── 音声入力システム ────────────────────────────────────────────── -->
+<style>
+  .mic-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
+    background: var(--surface); color: var(--muted);
+    box-shadow: 0 1px 4px rgba(0,0,0,.15); transition: all .2s;
+    flex-shrink: 0; font-size: 15px;
+  }
+  .mic-btn:hover { background: #e8f0fe; color: #1a56c4; }
+  .mic-btn.recording { background: #fee2e2; color: #dc2626; animation: mic-pulse .8s ease-in-out infinite; }
+  .mic-btn.cleaning  { background: #fef9c3; color: #92400e; cursor: wait; }
+  @keyframes mic-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.4)} 50%{box-shadow:0 0 0 6px rgba(220,38,38,0)} }
+  .mic-wrap { display: flex; align-items: center; gap: 6px; }
+  .mic-wrap input, .mic-wrap textarea { flex: 1; }
+</style>
+<script>
+(function() {
+  var _SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  // マイクボタンをinput/textarea要素に付与する
+  window.attachMicButton = function(inputEl, contextLabel) {
+    if (!_SpeechRecognition) return;
+    if (inputEl._micAttached) return;
+    inputEl._micAttached = true;
+
+    var wrap = document.createElement('div');
+    wrap.className = 'mic-wrap';
+    inputEl.parentNode.insertBefore(wrap, inputEl);
+    wrap.appendChild(inputEl);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mic-btn';
+    btn.title = '音声入力';
+    btn.innerHTML = '🎤';
+    wrap.appendChild(btn);
+
+    var recog = new _SpeechRecognition();
+    recog.lang = 'ja-JP';
+    recog.interimResults = false;
+    recog.maxAlternatives = 1;
+
+    var running = false;
+
+    btn.addEventListener('click', function() {
+      if (running) { recog.stop(); return; }
+      running = true;
+      btn.classList.add('recording');
+      recog.start();
+    });
+
+    recog.onresult = function(e) {
+      var raw = e.results[0][0].transcript.trim();
+      if (!raw) return;
+      btn.classList.remove('recording');
+      btn.classList.add('cleaning');
+      btn.innerHTML = '⏳';
+
+      var token = localStorage.getItem('client_token') || '';
+      var cid   = localStorage.getItem('client_id')    || '';
+
+      fetch('/api/v1/client/voice-cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Client-Token': token },
+        body: JSON.stringify({ raw: raw, context: contextLabel || 'テキスト入力', client_id: cid })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        inputEl.value = d.text || raw;
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      })
+      .catch(function() { inputEl.value = raw; })
+      .finally(function() {
+        btn.classList.remove('cleaning');
+        btn.innerHTML = '🎤';
+        running = false;
+      });
+    };
+
+    recog.onerror = function() {
+      btn.classList.remove('recording');
+      btn.innerHTML = '🎤';
+      running = false;
+    };
+
+    recog.onend = function() {
+      if (running && !btn.classList.contains('cleaning')) {
+        btn.classList.remove('recording');
+        btn.innerHTML = '🎤';
+        running = false;
+      }
+    };
+  };
+
+  // 静的フィールドに付与（DOM準備後）
+  function _attachStatic() {
+    var fields = [
+      // 発注モーダル
+      { sel: '#inp-product',      ctx: '商品名' },
+      { sel: '#inp-buyer',        ctx: '購入者名' },
+      { sel: '#inp-note',         ctx: '備考' },
+      // ステータスモーダル
+      { sel: '#inp-memo',         ctx: 'メモ' },
+      { sel: '#inp-cancel-note',  ctx: 'キャンセル理由' },
+      // 経費モーダル
+      { sel: '#exp-inp-desc',     ctx: '経費内容' },
+      { sel: '#exp-inp-notes',    ctx: '経費備考' },
+      // 指示送信モーダル
+      { sel: '#ins-inp-subject',  ctx: '指示件名' },
+      { sel: '#ins-inp-body',     ctx: '指示本文' },
+      // スケジュールモーダル
+      { sel: '#sch-inp-title',    ctx: 'スケジュールタイトル' },
+      { sel: '#sch-inp-notes',    ctx: 'スケジュールメモ' },
+      // 案件モーダル
+      { sel: '#proj-inp-name',    ctx: '案件名' },
+      { sel: '#proj-inp-client',  ctx: '取引先名' },
+      { sel: '#proj-inp-location',ctx: '場所・住所' },
+      { sel: '#proj-inp-notes',   ctx: '案件メモ' },
+      // 日報モーダル
+      { sel: '#report-inp-body',  ctx: '日報内容' },
+      // チェックリスト
+      { sel: '#chk-inp-text',     ctx: 'チェック項目' },
+      // 施工マニュアル
+      { sel: '#manual-search',    ctx: 'マニュアル検索' },
+      { sel: '#manual-ai-topic',  ctx: 'マニュアルテーマ' },
+      { sel: '#manual-ai-content',ctx: 'マニュアル内容' },
+    ];
+    fields.forEach(function(f) {
+      var el = document.querySelector(f.sel);
+      if (el) window.attachMicButton(el, f.ctx);
+    });
+  }
+
+  // モーダル内フィールドへの付与（モーダル生成後に呼ぶ）
+  window.attachMicToModal = function(modalId, fields) {
+    if (!_SpeechRecognition) return;
+    var modal = document.getElementById(modalId);
+    if (!modal) return;
+    (fields || []).forEach(function(f) {
+      var el = modal.querySelector(f.sel);
+      if (el) window.attachMicButton(el, f.ctx);
+    });
+  };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(_attachStatic, 1500);
   });
 })();
 </script>
