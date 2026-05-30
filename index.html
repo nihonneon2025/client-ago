@@ -2728,17 +2728,28 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       setupSbDnD();
     }, 700);
 
-    // ログイン完了後に工程タブをデフォルト表示
+    // 工程タブをデフォルト表示（セッション維持・ログイン両方に対応）
+    var _schedDone = false;
+    function _goSchedule(delay) {
+      if (_schedDone) return;
+      setTimeout(function() {
+        if (_schedDone) return;
+        _schedDone = true;
+        if (typeof switchTab === 'function') switchTab('schedule');
+      }, delay || 0);
+    }
+
+    // ケース①: 初期化完了後にまだ工程でなければ切替（セッション再ログインや自動ログイン対応）
+    setTimeout(function() {
+      var active = document.querySelector('#sidebar-nav .sb-item.active');
+      if (!active || active.dataset.tab !== 'schedule') _goSchedule(0);
+    }, 1000);
+
+    // ケース②: ログインモーダルが閉じたとき（新規ログイン）
     var loginModal = document.getElementById('login-modal');
     if (loginModal) {
-      new MutationObserver(function(muts) {
-        muts.forEach(function(m) {
-          if (!loginModal.classList.contains('show')) {
-            setTimeout(function() {
-              if (typeof switchTab === 'function') switchTab('schedule');
-            }, 150);
-          }
-        });
+      new MutationObserver(function() {
+        if (!loginModal.classList.contains('show')) _goSchedule(200);
       }).observe(loginModal, {attributes: true, attributeFilter: ['class']});
     }
   });
