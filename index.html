@@ -1815,6 +1815,57 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     <div id="order-master-list-m"></div>
   </div>
 
+  <!-- 期限アラート -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+      <div style="font-size:14px;font-weight:600">📋 期限アラート（申請・手配・請求）</div>
+      <button class="btn-secondary" style="padding:4px 12px;font-size:12px" onclick="showDeadlineAlertForm()">＋ 新規登録</button>
+    </div>
+    <div id="deadline-alert-form-m" style="display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">現場名</div>
+          <input id="da-name-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: 渋谷店舗工事">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">種別</div>
+          <select id="da-cat-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
+            <option value="">-- 選択 --</option>
+            <option>構造変更申請</option>
+            <option>道路使用許可</option>
+            <option>職人手配</option>
+            <option>見積提出</option>
+            <option>請求書発行</option>
+            <option>その他</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">期限日</div>
+          <input id="da-deadline-m" type="date" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">何日前から通知</div>
+          <input id="da-days-m" type="number" min="1" value="7" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">LINEルーム名 <span style="color:#ef4444">*</span></div>
+          <input id="da-room-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: AGO全体">
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">メモ（省略可）</div>
+        <input id="da-memo-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="備考など">
+      </div>
+      <div style="text-align:right">
+        <button class="btn-secondary" style="padding:6px 14px;font-size:13px;margin-right:6px" onclick="document.getElementById('deadline-alert-form-m').style.display='none'">キャンセル</button>
+        <button class="btn-primary" style="padding:6px 14px;font-size:13px" onclick="saveDeadlineAlert()">登録</button>
+      </div>
+    </div>
+    <div id="deadline-alert-list-m"></div>
+  </div>
+
   <!-- 着工アラート -->
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
@@ -1951,6 +2002,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
 
   window.initAlertsView = async function() {
     await loadOrderMaster();
+    await loadDeadlineAlerts();
     await loadConstructionAlerts();
   };
 
@@ -2010,6 +2062,79 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--red);font-size:13px">読み込み失敗: '+e.message+'</div>';
     }
   }
+
+  async function loadDeadlineAlerts() {
+    var el = document.getElementById('deadline-alert-list-m');
+    el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">読み込み中...</div>';
+    try {
+      var rows = await apiCall('GET', '/api/v1/client/deadline-alerts');
+      if (!rows.length) {
+        el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">期限アラートがありません。「＋ 新規登録」から追加してください</div>';
+        return;
+      }
+      var today = new Date().toISOString().slice(0,10);
+      el.innerHTML = '<div>' + rows.map(function(r,i){
+        var done = r.status === 'done';
+        var urgent = !done && r.deadline <= today;
+        var borderStyle = i < rows.length-1 ? 'border-bottom:1px solid var(--border)' : '';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;'+ borderStyle +(done?';opacity:.6':'')+'">' +
+          '<div style="flex:1">' +
+          '<div style="font-size:13px;font-weight:600">'+esc(r.project_name)+'<span style="margin-left:8px;font-size:11px;background:rgba(99,102,241,.12);color:#6366f1;padding:2px 8px;border-radius:8px">'+esc(r.category)+'</span></div>' +
+          '<div style="font-size:11px;margin-top:3px">期限: <strong style="color:'+(done?'#10b981':urgent?'#ef4444':'var(--text)')+'">'+esc(r.deadline)+'</strong>'+(r.memo?' / '+esc(r.memo):'')+' / '+r.alert_days_before+'日前から通知</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;flex-shrink:0">' +
+          (!done?'<button onclick="markDeadlineDone(\''+esc(r.id)+'\')" style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#10b981;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:12px">完了</button>':'<span style="font-size:12px;color:#10b981;font-weight:600">✅ 完了</span>') +
+          '<button onclick="deleteDeadlineAlert(\''+esc(r.id)+'\')" style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:12px">削除</button>' +
+          '</div></div>';
+      }).join('') + '</div>';
+    } catch(e) {
+      el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--red);font-size:13px">読み込み失敗: '+e.message+'</div>';
+    }
+  }
+
+  window.showDeadlineAlertForm = function() {
+    document.getElementById('deadline-alert-form-m').style.display = '';
+    document.getElementById('da-name-m').focus();
+  };
+
+  window.saveDeadlineAlert = async function() {
+    var name = document.getElementById('da-name-m').value.trim();
+    var cat = document.getElementById('da-cat-m').value;
+    var deadline = document.getElementById('da-deadline-m').value;
+    var days = parseInt(document.getElementById('da-days-m').value) || 7;
+    var room = document.getElementById('da-room-m').value.trim();
+    var memo = document.getElementById('da-memo-m').value.trim();
+    if (!name || !cat || !deadline || !room) { alert('現場名・種別・期限日・LINEルーム名は必須です'); return; }
+    try {
+      await apiCall('POST', '/api/v1/client/deadline-alerts', {
+        project_name:name, category:cat, deadline:deadline,
+        alert_days_before:days, lineworks_room:room, memo:memo
+      });
+      document.getElementById('deadline-alert-form-m').style.display = 'none';
+      ['da-name-m','da-deadline-m','da-room-m','da-memo-m'].forEach(function(id){document.getElementById(id).value='';});
+      document.getElementById('da-cat-m').value = '';
+      document.getElementById('da-days-m').value = '7';
+      if (typeof showToast==='function') showToast('期限アラートを登録しました');
+      await loadDeadlineAlerts();
+    } catch(e) { if (typeof showToast==='function') showToast('登録失敗: '+e.message); }
+  };
+
+  window.markDeadlineDone = async function(id) {
+    try {
+      await apiCall('PATCH', '/api/v1/client/deadline-alerts/'+id, {status:'done'});
+      if (typeof showToast==='function') showToast('完了にしました');
+      await loadDeadlineAlerts();
+    } catch(e) { if (typeof showToast==='function') showToast('更新失敗: '+e.message); }
+  };
+
+  window.deleteDeadlineAlert = async function(id) {
+    if (!confirm('このアラートを削除しますか？')) return;
+    try {
+      await apiCall('DELETE', '/api/v1/client/deadline-alerts/'+id);
+      if (typeof showToast==='function') showToast('削除しました');
+      await loadDeadlineAlerts();
+    } catch(e) { if (typeof showToast==='function') showToast('削除失敗: '+e.message); }
+  };
 
   window.showOrderMasterForm = function() {
     document.getElementById('order-master-form-m').style.display = '';
