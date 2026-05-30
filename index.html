@@ -2758,7 +2758,12 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
 
     // テーブル構築
     var COL_W = 130;
-    var html = '<div id="sch-wide-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch;cursor:grab;user-select:none">'
+    var btnBase = 'padding:4px 16px;border-radius:16px;font-size:12px;cursor:pointer;touch-action:manipulation;border:1px solid ';
+    var html = '<div style="display:flex;gap:6px;padding:6px 0 8px">'
+      + '<button style="'+btnBase+'var(--accent);background:var(--accent);color:#fff;font-weight:600" onclick="setGanttMode(\'daily\')">📅 日毎</button>'
+      + '<button style="'+btnBase+'var(--border);background:none;color:var(--muted)" onclick="setGanttMode(\'hourly\')">⏱ 時間毎</button>'
+      + '</div>'
+      + '<div id="sch-wide-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch;cursor:grab;user-select:none">'
       + '<table style="min-width:' + (dates.length * COL_W + 140) + 'px;table-layout:fixed;border-collapse:collapse"><thead><tr>'
       + '<th style="position:sticky;left:0;z-index:3;background:var(--surface);width:130px;min-width:130px">スタッフ</th>';
 
@@ -2789,7 +2794,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       });
       html += '</tr>';
     });
-    html += '</tbody></table></div>';
+    html += '</tbody></table></div></div>'; // scroll wrapper + outer wrapper
     container.innerHTML = html;
 
     // 今日列までスクロール
