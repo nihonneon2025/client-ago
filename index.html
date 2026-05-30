@@ -2576,27 +2576,55 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     }).catch(function(){});
   }
 
-  // ── A. タイムライン D&D ─────────────────────────────────────
-  var _tlEid = null, _tlFrom = null, _tlEl = null, _lastHovRow = null;
+  // ── A. タイムライン D&D（横=時間変更・縦=担当者変更・マウスイベント統合）──
+  var _tlDrag = null;
+
+  function _minToTime(min) {
+    var h = Math.floor(min/60), m = min%60;
+    return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
+  }
 
   function patchTlBadges(chart) {
     chart.querySelectorAll('.tl-entry-bar').forEach(function(bar) {
       if (bar.dataset.c12) return;
       bar.dataset.c12 = '1';
-      var m = (bar.getAttribute('onclick') || '').match(/\d+/);
+      var m = (bar.getAttribute('onclick')||'').match(/\d+/);
       if (!m) return;
       var eid = parseInt(m[0]);
-      var row = bar.closest('.tl-row');
-      var fromUid = row && row.dataset.uid || null;
-      bar.draggable = true;
       bar.style.cursor = 'grab';
-      bar.addEventListener('dragstart', function(ev) {
-        _tlEid = eid; _tlFrom = fromUid; _tlEl = bar;
-        ev.dataTransfer.effectAllowed = 'move';
-        ev.stopPropagation();
-        setTimeout(function() { bar.style.opacity = '0.4'; bar.style.cursor = ''; }, 0);
+
+      bar.addEventListener('mousedown', function(ev) {
+        if (ev.button !== 0) return;
+        ev.preventDefault(); ev.stopPropagation();
+        var row = bar.closest('.tl-row');
+        var rowBar = row && row.querySelector('.tl-row-bar');
+        if (!rowBar) return;
+        var entries = [];
+        try { entries = JSON.parse(localStorage.getItem(SCH_KEY)) || []; } catch(e) {}
+        var entry = entries.find(function(e) { return e.id == eid; });
+        if (!entry) return;
+        // 開始・終了時間をパース
+        var startMin = null, duration = 60;
+        if (entry.start_time) {
+          var sp = entry.start_time.split(':').map(Number);
+          startMin = sp[0]*60+(sp[1]||0);
+          if (entry.end_time) {
+            var ep = entry.end_time.split(':').map(Number);
+            var endMin = ep[0]*60+(ep[1]||0);
+            if (endMin > startMin) duration = endMin - startMin;
+          }
+        }
+        _tlDrag = {
+          bar:bar, eid:eid, row:row, rowBar:rowBar,
+          startX:ev.clientX, startY:ev.clientY,
+          origLeft:bar.style.left, origStartMin:startMin, duration:duration,
+          fromUid:row&&row.dataset.uid||null,
+          pendingStartMin:startMin, pendingUid:null, moved:false
+        };
+        bar.style.cursor='grabbing'; bar.style.opacity='0.75';
+        bar.style.zIndex='10'; bar.style.transition='none';
+        bar.style.boxShadow='0 4px 16px rgba(0,0,0,.25)';
       });
-      bar.addEventListener('dragend', function() { bar.style.opacity = ''; bar.style.cursor = 'grab'; });
     });
   }
 
@@ -2605,44 +2633,73 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     if (!chart || chart._c12tl) return;
     chart._c12tl = true;
 
-    chart.addEventListener('dragover', function(ev) {
-      var row = ev.target.closest && ev.target.closest('.tl-row[data-uid]');
-      if (!row || !_tlEid) return;
-      ev.preventDefault();
-      if (_lastHovRow && _lastHovRow !== row) { _lastHovRow.style.outline=''; _lastHovRow.style.background=''; }
-      row.style.outline = '2px solid #6366f1';
-      row.style.background = 'rgba(99,102,241,.08)';
-      _lastHovRow = row;
-    });
-    chart.addEventListener('dragleave', function(ev) {
-      if (!ev.relatedTarget || !chart.contains(ev.relatedTarget)) {
-        if (_lastHovRow) { _lastHovRow.style.outline=''; _lastHovRow.style.background=''; _lastHovRow=null; }
+    document.addEventListener('mousemove', function(ev) {
+      if (!_tlDrag) return;
+      var d = _tlDrag;
+      var dx = ev.clientX - d.startX, dy = ev.clientY - d.startY;
+      d.moved = Math.abs(dx) > 4 || Math.abs(dy) > 4;
+
+      // 横移動: 時間を15分スナップで更新
+      if (d.origStartMin !== null) {
+        var rbW = d.rowBar.getBoundingClientRect().width || 1440;
+        var deltaMin = Math.round(dx / rbW * 1440 / 15) * 15;
+        var newStart = Math.max(0, Math.min(1380, d.origStartMin + deltaMin));
+        d.pendingStartMin = newStart;
+        d.bar.style.left = (newStart / 1440 * 100) + '%';
+      }
+
+      // 縦移動: ターゲット行ハイライト
+      var el = document.elementFromPoint(ev.clientX, ev.clientY);
+      var tgtRow = el && el.closest('.tl-row[data-uid]');
+      chart.querySelectorAll('.tl-row').forEach(function(r){ r.style.outline=''; r.style.background=''; });
+      if (tgtRow && tgtRow !== d.row) {
+        tgtRow.style.outline = '2px solid #6366f1';
+        tgtRow.style.background = 'rgba(99,102,241,.06)';
+        d.pendingUid = tgtRow.dataset.uid;
+      } else {
+        d.pendingUid = null;
       }
     });
-    chart.addEventListener('drop', function(ev) {
-      if (_lastHovRow) { _lastHovRow.style.outline=''; _lastHovRow.style.background=''; _lastHovRow=null; }
-      var row = ev.target.closest && ev.target.closest('.tl-row[data-uid]');
-      if (!row || !_tlEid || !_tlFrom) { _tlEid=null; _tlFrom=null; _tlEl=null; return; }
-      ev.preventDefault();
-      var toUid = row.dataset.uid;
-      if (toUid === _tlFrom) { _tlEid=null; _tlFrom=null; _tlEl=null; return; }
-      try {
-        var entries = JSON.parse(localStorage.getItem(SCH_KEY)) || [];
-        var entry = entries.find(function(e) { return e.id == _tlEid; });
-        if (!entry) { _tlEid=null; _tlFrom=null; _tlEl=null; return; }
+
+    document.addEventListener('mouseup', function(ev) {
+      if (!_tlDrag) return;
+      var d = _tlDrag; _tlDrag = null;
+      d.bar.style.cursor='grab'; d.bar.style.opacity='';
+      d.bar.style.zIndex=''; d.bar.style.transition=''; d.bar.style.boxShadow='';
+      chart.querySelectorAll('.tl-row').forEach(function(r){ r.style.outline=''; r.style.background=''; });
+      if (!d.moved) return;
+
+      var entries = [];
+      try { entries = JSON.parse(localStorage.getItem(SCH_KEY)) || []; } catch(e) {}
+      var entry = entries.find(function(e) { return e.id == d.eid; });
+      if (!entry) { d.bar.style.left = d.origLeft; return; }
+
+      var changed = false;
+      // 時間変更
+      if (d.origStartMin !== null && d.pendingStartMin !== d.origStartMin) {
+        entry.start_time = _minToTime(d.pendingStartMin);
+        entry.end_time   = _minToTime(Math.min(1440, d.pendingStartMin + d.duration));
+        changed = true;
+      }
+      // 担当者変更（縦移動して別行にいる場合）
+      if (d.pendingUid && d.pendingUid !== d.fromUid) {
         if (!Array.isArray(entry.staff)) entry.staff = [];
-        entry.staff = entry.staff.filter(function(u) { return u !== _tlFrom; });
-        if (!entry.staff.includes(toUid)) entry.staff.push(toUid);
+        entry.staff = entry.staff.filter(function(u){ return u !== d.fromUid; });
+        if (!entry.staff.includes(d.pendingUid)) entry.staff.push(d.pendingUid);
+        changed = true;
+        var tgtRB = chart.querySelector('.tl-row[data-uid="'+d.pendingUid+'"] .tl-row-bar');
+        if (tgtRB) tgtRB.appendChild(d.bar);
+      }
+      if (changed) {
         syncServer(entries);
-        var rowBar = row.querySelector('.tl-row-bar');
-        if (rowBar && _tlEl) { rowBar.appendChild(_tlEl); _tlEl.style.opacity=''; }
-        if (typeof window.showToast === 'function') window.showToast('スケジュールを更新しました');
-      } catch(e) { console.error('C-12 TL:', e); }
-      _tlEid=null; _tlFrom=null; _tlEl=null;
+        if (typeof window.showToast==='function') window.showToast('スケジュールを更新しました');
+      } else {
+        d.bar.style.left = d.origLeft; // 変化なし→元に戻す
+      }
     });
 
     patchTlBadges(chart);
-    new MutationObserver(function() { patchTlBadges(chart); })
+    new MutationObserver(function(){ patchTlBadges(chart); })
       .observe(chart, {childList:true, subtree:true});
   }
 
