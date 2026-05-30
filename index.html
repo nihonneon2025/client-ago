@@ -1902,6 +1902,35 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     </div>
     <div id="construction-alert-list-m"></div>
   </div>
+
+  <!-- 着工1週間前チェックリスト -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+      <div style="font-size:14px;font-weight:600">✅ 着工1週間前チェックリスト</div>
+      <button class="btn-secondary" style="padding:4px 12px;font-size:12px" onclick="showChecklistAlertForm()">＋ 新規登録</button>
+    </div>
+    <div id="checklist-alert-form-m" style="display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">現場名</div>
+          <input id="cl-name-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: 渋谷店舗工事">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">着工日</div>
+          <input id="cl-date-m" type="date" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)">
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">LINEルーム名 <span style="color:#ef4444">*</span></div>
+        <input id="cl-room-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: AGO全体（正確なルーム名）">
+      </div>
+      <div style="text-align:right">
+        <button class="btn-secondary" style="padding:6px 14px;font-size:13px;margin-right:6px" onclick="document.getElementById('checklist-alert-form-m').style.display='none'">キャンセル</button>
+        <button class="btn-primary" style="padding:6px 14px;font-size:13px" onclick="saveChecklistAlert()">登録</button>
+      </div>
+    </div>
+    <div id="checklist-alert-list-m"></div>
+  </div>
 </div>
 
 <!-- スタッフ管理 -->
@@ -2004,6 +2033,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     await loadOrderMaster();
     await loadDeadlineAlerts();
     await loadConstructionAlerts();
+    await loadChecklistAlerts();
   };
 
   async function loadOrderMaster() {
@@ -2200,6 +2230,87 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       await apiCall('DELETE', '/api/v1/client/construction-alerts/'+id);
       if (typeof showToast==='function') showToast('削除しました');
       await loadConstructionAlerts();
+    } catch(e) { if (typeof showToast==='function') showToast('削除失敗: '+e.message); }
+  };
+
+  window.showChecklistAlertForm = function() {
+    document.getElementById('checklist-alert-form-m').style.display = '';
+    document.getElementById('cl-name-m').focus();
+  };
+
+  async function loadChecklistAlerts() {
+    var el = document.getElementById('checklist-alert-list-m');
+    el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">読み込み中...</div>';
+    try {
+      var rows = await apiCall('GET', '/api/v1/client/checklist-alerts');
+      if (!rows.length) {
+        el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">チェックリストがありません。「＋ 新規登録」から追加してください</div>';
+        return;
+      }
+      var today = new Date().toISOString().slice(0,10);
+      el.innerHTML = rows.map(function(r, i) {
+        var done = r.status === 'completed';
+        var allChecked = r.check_materials && r.check_contractor && r.check_instruction;
+        var urgent = !done && r.construction_date <= today;
+        var border = i < rows.length-1 ? 'border-bottom:1px solid var(--border)' : '';
+        var checks = [
+          {key:'check_materials', label:'部材確定', val:r.check_materials},
+          {key:'check_contractor', label:'下請確定', val:r.check_contractor},
+          {key:'check_instruction', label:'施工指示書配布', val:r.check_instruction},
+        ];
+        return '<div style="padding:12px 16px;'+border+'">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+          '<div>' +
+          '<div style="font-size:13px;font-weight:600;color:'+(done?'var(--muted)':urgent?'#ef4444':'var(--text)')+'">'+esc(r.construction_name)+'</div>' +
+          '<div style="font-size:11px;margin-top:2px;color:var(--muted)">着工: <strong style="color:'+(done?'#10b981':urgent?'#ef4444':'var(--text)')+'">'+esc(r.construction_date)+'</strong></div>' +
+          '</div>' +
+          '<button onclick="deleteChecklistAlert(\''+esc(r.id)+'\')" style="background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#ef4444;padding:4px 10px;border-radius:8px;cursor:pointer;font-size:11px">削除</button>' +
+          '</div>' +
+          '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+          checks.map(function(c) {
+            return '<label style="display:flex;align-items:center;gap:5px;cursor:'+(done?'default':'pointer')+';font-size:12px;color:'+(c.val?'#10b981':'var(--muted)')+'">' +
+              '<input type="checkbox" '+(c.val?'checked':'')+' '+(done?'disabled':'')+
+              ' onchange="toggleChecklistItem(\''+esc(r.id)+'\',\''+c.key+'\',this.checked)" style="accent-color:#10b981"> '+c.label+'</label>';
+          }).join('') +
+          '</div>' +
+          '</div>';
+      }).join('');
+    } catch(e) {
+      el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--red);font-size:13px">読み込み失敗: '+esc(e.message)+'</div>';
+    }
+  }
+
+  window.saveChecklistAlert = async function() {
+    var name = document.getElementById('cl-name-m').value.trim();
+    var date = document.getElementById('cl-date-m').value;
+    var room = document.getElementById('cl-room-m').value.trim();
+    if (!name || !date || !room) { alert('現場名・着工日・LINEルーム名は必須です'); return; }
+    try {
+      await apiCall('POST', '/api/v1/client/checklist-alerts', {
+        construction_name:name, construction_date:date, lineworks_room:room
+      });
+      document.getElementById('checklist-alert-form-m').style.display = 'none';
+      ['cl-name-m','cl-date-m','cl-room-m'].forEach(function(id){document.getElementById(id).value='';});
+      if (typeof showToast==='function') showToast('チェックリストを登録しました');
+      setTimeout(function(){ loadChecklistAlerts(); }, 300);
+    } catch(e) { if (typeof showToast==='function') showToast('登録失敗: '+e.message); }
+  };
+
+  window.toggleChecklistItem = async function(id, field, checked) {
+    var patch = {};
+    patch[field] = checked ? 1 : 0;
+    try {
+      await apiCall('PATCH', '/api/v1/client/checklist-alerts/'+id, patch);
+      setTimeout(function(){ loadChecklistAlerts(); }, 300);
+    } catch(e) { if (typeof showToast==='function') showToast('更新失敗: '+e.message); }
+  };
+
+  window.deleteChecklistAlert = async function(id) {
+    if (!confirm('このチェックリストを削除しますか？')) return;
+    try {
+      await apiCall('DELETE', '/api/v1/client/checklist-alerts/'+id);
+      if (typeof showToast==='function') showToast('削除しました');
+      setTimeout(function(){ loadChecklistAlerts(); }, 300);
     } catch(e) { if (typeof showToast==='function') showToast('削除失敗: '+e.message); }
   };
 
