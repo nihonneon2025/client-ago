@@ -2556,11 +2556,9 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
         }
         if (changed) {
           localStorage.setItem(key, JSON.stringify(entries));
+          // DOM上でバッジを移動（再描画なし：initScheduleViewは呼ばない）
           if (_dragEl) { td.appendChild(_dragEl); _dragEl.dataset.fromUser = toUser || _dragFromUser || ''; _dragEl.style.opacity = ''; }
           if (typeof window.showToast === 'function') window.showToast('スケジュールを更新しました');
-          setTimeout(function() {
-            if (typeof window.initScheduleView === 'function') window.initScheduleView();
-          }, 400);
         }
       } catch(e) { console.error('C-11:', e); }
       _dragEntryId = null; _dragFromUser = null; _dragEl = null;
