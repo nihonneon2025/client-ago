@@ -2646,9 +2646,9 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       .observe(chart, {childList:true, subtree:true});
   }
 
-  // ── B. 日単位スライド（全体ビュー・左右ドラッグで1日ずつ移動）──
-  var _c12DayOff = 0; // ベース週からの日数オフセット
+  // ── B. ワイドガント（42日表示・横スクロール・ドラッグスクロール）──
   var DAY_NAMES = ['日','月','火','水','木','金','土'];
+  var WIDE_DAYS = 56, WIDE_PAST = 14; // 14日前〜42日後
 
   function _fmtD(d) {
     var m = d.getMonth()+1, day = d.getDate();
@@ -2658,134 +2658,117 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  function applyDayOffset() {
+  function _getStaff() {
+    var list = [];
+    document.querySelectorAll('#sch-overview tbody tr[data-uid]').forEach(function(tr) {
+      var uid = tr.dataset.uid;
+      var nc = tr.querySelector('td.staff-name');
+      if (!uid || !nc) return;
+      list.push({uid:uid, name:nc.textContent.replace(/[⠿🏢]/g,'').trim()});
+    });
+    return list;
+  }
+
+  function renderWideGantt() {
     var container = document.getElementById('sch-overview');
     if (!container) return;
+    var staff = _getStaff();
+    if (!staff.length) return;
+
     var entries = [];
     try { entries = JSON.parse(localStorage.getItem(SCH_KEY)) || []; } catch(e) {}
     var today = _fmtD(new Date());
+    var start = new Date(); start.setDate(start.getDate() - WIDE_PAST);
 
-    // ヘッダーの日付を更新し、新しい日付を収集
-    var ths = container.querySelectorAll('thead th');
-    var colDates = []; // [{col, dateStr}]
-    ths.forEach(function(th, i) {
-      if (i === 0) return;
-      var m = th.textContent.match(/(\d+)\/(\d+)/);
-      if (!m) return;
-      var year = new Date().getFullYear();
-      // ヘッダーの元の日付を再計算（オフセット適用前の基準に戻す）
-      // → 初回は実際のDOM日付から取得する（data属性で管理）
-      var baseStr = th.dataset.base;
-      if (!baseStr) { // 初回：ベースを記録
-        var bd = new Date(year, parseInt(m[1])-1, parseInt(m[2]));
-        baseStr = _fmtD(bd);
-        th.dataset.base = baseStr;
-      }
-      var baseParts = baseStr.split('-');
-      var baseDate = new Date(parseInt(baseParts[0]), parseInt(baseParts[1])-1, parseInt(baseParts[2]));
-      var newDate = new Date(baseDate); newDate.setDate(newDate.getDate() + _c12DayOff);
-      var newStr = _fmtD(newDate);
-      colDates.push({col: i, dateStr: newStr, newDate: newDate});
-      var dow = DAY_NAMES[newDate.getDay()];
-      th.textContent = (newDate.getMonth()+1) + '/' + newDate.getDate() + '(' + dow + ')';
-      th.className = newStr === today ? 'today' : '';
+    // 日付配列
+    var dates = [];
+    for (var i = 0; i < WIDE_DAYS; i++) {
+      var d = new Date(start); d.setDate(d.getDate() + i);
+      dates.push({d:d, s:_fmtD(d)});
+    }
+
+    // テーブル構築
+    var COL_W = 72;
+    var html = '<div id="sch-wide-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch;cursor:grab;user-select:none">'
+      + '<table style="min-width:' + (dates.length * COL_W + 140) + 'px;table-layout:fixed;border-collapse:collapse"><thead><tr>'
+      + '<th style="position:sticky;left:0;z-index:3;background:var(--surface);width:130px;min-width:130px">スタッフ</th>';
+
+    dates.forEach(function(di) {
+      var dow = DAY_NAMES[di.d.getDay()];
+      var isT = di.s===today, isSu=di.d.getDay()===0, isSa=di.d.getDay()===6;
+      var bg = isT ? '#4da6ff' : isSu ? 'rgba(239,68,68,.15)' : isSa ? 'rgba(59,130,246,.12)' : 'var(--surface)';
+      var fc = isT ? '#fff' : '';
+      html += '<th style="width:'+COL_W+'px;min-width:'+COL_W+'px;background:'+bg+';color:'+fc+';font-size:11px">'
+        + (di.d.getMonth()+1)+'/'+di.d.getDate()+'<br><span style="font-weight:400">'+dow+'</span></th>';
     });
+    html += '</tr></thead><tbody>';
 
-    // 各スタッフ行のセルを更新
-    container.querySelectorAll('tbody tr[data-uid]').forEach(function(tr) {
-      var uid = tr.dataset.uid;
-      var cells = tr.querySelectorAll('td');
-      colDates.forEach(function(ci) {
-        var td = cells[ci.col]; if (!td) return;
-        // バッジをクリア（D&D用マーク済みのものも）
-        td.querySelectorAll('.sch-cell-entry').forEach(function(el) { el.remove(); });
-        td.style.background = ci.dateStr === today ? 'rgba(99,102,241,.06)' : '';
-        // 新しい日付のエントリを挿入
-        entries.filter(function(e) {
-          return e.date === ci.dateStr && e.staff && e.staff.includes(uid);
-        }).forEach(function(e) {
-          var span = document.createElement('span');
-          span.className = 'sch-cell-entry';
-          span.style.background = e.project_color || '#6366f1';
-          span.setAttribute('onclick', 'openScheduleDetail(' + e.id + ')');
-          span.title = _esc(e.title || '');
-          span.textContent = e.project_name || e.title || '';
-          td.appendChild(span);
-        });
+    staff.forEach(function(s) {
+      html += '<tr data-uid="'+s.uid+'">'
+        + '<td class="staff-name" style="position:sticky;left:0;z-index:2;background:var(--surface)">'
+        + '<span class="sch-drag-handle">⠿</span>'+_esc(s.name)+'</td>';
+      dates.forEach(function(di) {
+        var isT=di.s===today, isSu=di.d.getDay()===0, isSa=di.d.getDay()===6;
+        var bg=isT?'rgba(99,102,241,.08)':isSu?'rgba(239,68,68,.04)':isSa?'rgba(59,130,246,.04)':'';
+        html += '<td style="vertical-align:top;padding:2px;'+(bg?'background:'+bg:'')+';">';
+        entries.filter(function(e){return e.date===di.s&&e.staff&&e.staff.includes(s.uid);})
+          .forEach(function(e){
+            html+='<span class="sch-cell-entry" style="background:'+(e.project_color||'#6366f1')+';display:block;margin-bottom:2px"'
+              +' onclick="openScheduleDetail('+e.id+')" title="'+_esc(e.title||'')+'">'+_esc(e.project_name||e.title||'')+'</span>';
+          });
+        html += '</td>';
       });
+      html += '</tr>';
     });
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+
+    // 今日列までスクロール
+    setTimeout(function() {
+      var sc = document.getElementById('sch-wide-scroll');
+      if (!sc) return;
+      var todayTh = sc.querySelector('thead th:nth-child('+(WIDE_PAST+2)+')');
+      if (todayTh) sc.scrollLeft = Math.max(0, todayTh.offsetLeft - 160);
+      setupWideDragScroll(sc);
+    }, 30);
+  }
+
+  function setupWideDragScroll(sc) {
+    if (!sc || sc._wds) return;
+    sc._wds = true;
+    var _mx=null, _sl=0;
+    sc.addEventListener('mousedown', function(ev) {
+      if (ev.target.closest('.sch-cell-entry')) return;
+      _mx=ev.clientX; _sl=sc.scrollLeft; sc.style.cursor='grabbing'; ev.preventDefault();
+    });
+    document.addEventListener('mousemove', function(ev) {
+      if (_mx===null) return;
+      sc.scrollLeft = _sl - (ev.clientX - _mx);
+    });
+    document.addEventListener('mouseup', function() {
+      if (_mx!==null) { _mx=null; if(sc) sc.style.cursor='grab'; }
+    });
+    sc.addEventListener('touchstart', function(ev) {
+      _mx=ev.touches[0].clientX; _sl=sc.scrollLeft;
+    }, {passive:true});
+    sc.addEventListener('touchmove', function(ev) {
+      if (_mx===null) return;
+      sc.scrollLeft = _sl - (ev.touches[0].clientX - _mx);
+    }, {passive:true});
+    sc.addEventListener('touchend', function() { _mx=null; });
   }
 
   function initWeekScroll() {
+    // 既存の renderOverview が終わった直後にワイドガントで上書き
     var ov = document.getElementById('sch-overview');
     if (!ov || ov._c12ws) return;
     ov._c12ws = true;
-
-    // schWeekMove を上書きしてオフセットをリセット
-    if (typeof schWeekMove === 'function') {
-      var _origWM = schWeekMove;
-      window.schWeekMove = function(dir) {
-        _c12DayOff = 0;
-        // ヘッダーのdata-baseをリセット（次回のapplyDayOffsetで再取得させる）
-        ov.querySelectorAll('thead th[data-base]').forEach(function(th) { delete th.dataset.base; });
-        _origWM(dir);
-      };
-    }
-
-    // #sch-overview の再描画後にオフセット再適用
     new MutationObserver(function() {
-      if (_c12DayOff !== 0) setTimeout(applyDayOffset, 0);
-    }).observe(ov, {childList: true});
-
-    // ドラッグ操作（スタッフ列は固定・日付列のみ追従してスナップ）
-    var _sx = null, _startOff = 0, _pendingOff = 0, _dragging = false, _dragCells = null;
-
-    function pxPerDay() {
-      var th = ov.querySelector('thead th:nth-child(2)');
-      return th ? Math.max(th.offsetWidth, 60) : 80;
-    }
-
-    function onStart(x) {
-      if (_dragging) return;
-      _sx = x; _startOff = _c12DayOff; _pendingOff = _c12DayOff; _dragging = true;
-      // スタッフ列（first-child / .staff-name）を除いた日付セルのみキャッシュ
-      _dragCells = Array.from(ov.querySelectorAll(
-        'thead th:not(:first-child), tbody td:not(.staff-name)'
-      ));
-      _dragCells.forEach(function(c) { c.style.transition = 'none'; c.style.userSelect = 'none'; });
-    }
-    function onMove(x) {
-      if (!_dragging || !_dragCells) return;
-      var dx = x - _sx;
-      _dragCells.forEach(function(c) { c.style.transform = 'translateX(' + dx + 'px)'; });
-      _pendingOff = _startOff - Math.round(dx / pxPerDay());
-    }
-    function onEnd() {
-      if (!_dragging) return;
-      _dragging = false; _sx = null;
-      _c12DayOff = _pendingOff;
-      if (_dragCells) {
-        _dragCells.forEach(function(c) {
-          c.style.transition = 'transform 0.18s ease';
-          c.style.transform = 'translateX(0)';
-          c.style.userSelect = '';
-        });
-        var cells = _dragCells; _dragCells = null;
-        setTimeout(function() {
-          cells.forEach(function(c) { c.style.transition = ''; c.style.transform = ''; });
-          applyDayOffset();
-        }, 180);
-      } else {
-        applyDayOffset();
+      // 標準レンダリングを検知したら即座に差し替え（ループ防止: #sch-wide-scroll があればスキップ）
+      if (!ov.querySelector('#sch-wide-scroll')) {
+        setTimeout(renderWideGantt, 0);
       }
-    }
-
-    ov.addEventListener('mousedown',  function(ev) { if (!ev.target.closest('.sch-cell-entry')) onStart(ev.clientX); });
-    document.addEventListener('mousemove', function(ev) { if (_dragging) onMove(ev.clientX); });
-    document.addEventListener('mouseup',   onEnd);
-    ov.addEventListener('touchstart', function(ev) { onStart(ev.touches[0].clientX); }, {passive:true});
-    ov.addEventListener('touchmove',  function(ev) { if (_dragging) onMove(ev.touches[0].clientX); }, {passive:true});
-    ov.addEventListener('touchend',   onEnd);
+    }).observe(ov, {childList: true});
   }
 
   // ── C. サイドバータブ D&D 並び替え ──────────────────────────
