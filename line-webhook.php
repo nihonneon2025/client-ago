@@ -129,12 +129,23 @@ foreach ($events as $event) {
             $q_type  = $q['type'] ?? '';
             if ($q_fname || in_array($q_type, ['file', 'image', 'video'])) {
                 $fname = $q_fname ?? ($q_type === 'image' ? $quoted_id . '.jpg' : $quoted_id . '.bin');
-                $url   = save_line_file($quoted_id, $LINE_CHANNEL_TOKEN, $fname);
-                if ($url) {
-                    $quoted_text = '[ファイル:' . $fname . ' URL:' . $url . ']';
-                    wh_log('[QUOTE_DL] type=' . $q_type . ' url=' . $url);
+                // 画像の場合はbase64でタスクに直接埋め込む（URLが非公開のため）
+                if ($q_type === 'image') {
+                    $b64 = get_line_file_b64($quoted_id, $LINE_CHANNEL_TOKEN);
+                    if ($b64) {
+                        $quoted_text = '[IMAGE_B64:' . $b64 . ']';
+                        wh_log('[QUOTE_DL] image→base64 len=' . strlen($b64));
+                    } else {
+                        wh_log('[QUOTE_DL] FAIL image b64 id=' . $quoted_id);
+                    }
                 } else {
-                    wh_log('[QUOTE_DL] FAIL type=' . $q_type . ' fname=' . $fname . ' → trying cache');
+                    $url = save_line_file($quoted_id, $LINE_CHANNEL_TOKEN, $fname);
+                    if ($url) {
+                        $quoted_text = '[ファイル:' . $fname . ' URL:' . $url . ']';
+                        wh_log('[QUOTE_DL] type=' . $q_type . ' url=' . $url);
+                    } else {
+                        wh_log('[QUOTE_DL] FAIL type=' . $q_type . ' fname=' . $fname . ' → trying cache');
+                    }
                 }
             }
         }
@@ -520,6 +531,42 @@ function ago_kv_set($key, $value) {
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
     wh_log('[kv_set] key=' . $key . ' url=' . $url . ' code=' . $code . ' err=' . ($err ?: 'none') . ' res=' . mb_substr($res ?? '', 0, 80));
+}
+
+// LINE Content API から画像をダウンロードしてbase64で返す（最大1000px・JPEG品質70で縮小）
+function get_line_file_b64($message_id, $token) {
+    $ch = curl_init('https://api-data.line.me/v2/bot/message/' . $message_id . '/content');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $token],
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    $content = curl_exec($ch);
+    $code    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code !== 200 || !$content) return null;
+    // GDで縮小（最大1000px・容量削減）
+    if (function_exists('imagecreatefromstring')) {
+        $img = @imagecreatefromstring($content);
+        if ($img) {
+            $w = imagesx($img); $h = imagesy($img);
+            $max = 1000;
+            if ($w > $max || $h > $max) {
+                $r = min($max / $w, $max / $h);
+                $nw = (int)($w * $r); $nh = (int)($h * $r);
+                $dst = imagecreatetruecolor($nw, $nh);
+                imagecopyresampled($dst, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+                imagedestroy($img);
+                $img = $dst;
+            }
+            ob_start();
+            imagejpeg($img, null, 70);
+            $content = ob_get_clean();
+            imagedestroy($img);
+        }
+    }
+    return base64_encode($content);
 }
 
 // LINE Content API からファイルをダウンロードしてサーバーに保存
