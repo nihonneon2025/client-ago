@@ -596,7 +596,6 @@ header{margin-left:var(--sb-w)}
     <button class="lang-btn" id="btn-zh" onclick="setLang('zh')">🇨🇳 中文</button>
     <button class="lang-btn" id="switch-user-btn" onclick="showSwitchUserModal()" title="ユーザー切り替え" style="display:none">👤</button>
     <button class="lang-btn" id="user-logout-btn" onclick="logoutUser()" title="ユーザー切替" style="display:none">👤</button>
-    <button class="lang-btn" id="push-register-btn" onclick="reRegisterPush()" title="通知を再登録">🔔</button>
   </div>
 </header>
 
@@ -615,7 +614,7 @@ header{margin-left:var(--sb-w)}
     <button class="sb-item" data-tab="monthly" onclick="switchTab('monthly')"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-8"/></svg><span>月別収支</span></button>
     <button class="sb-item" data-tab="customers" onclick="switchTab('customers')"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg><span>コンタクト</span></button>
     <button class="sb-item" data-tab="instructions" onclick="switchTab('instructions')"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg><span>指示</span></button>
-    <button class="sb-item" data-tab="line" onclick="switchTab('line')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span>LINE</span></button>
+    <button class="sb-item" data-tab="staff" onclick="switchTab('staff')"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg><span>スタッフ</span></button>
   </div>
 </nav>
 <div id="sb-overlay" onclick="document.getElementById('sidebar-nav').classList.remove('open');this.classList.remove('open')"></div>
@@ -1774,6 +1773,85 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     </div>
   </div>
 </div>
+
+<!-- スタッフ管理 -->
+<div id="staff-view" style="display:none;padding:16px 16px 100px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div>
+      <div style="font-size:18px;font-weight:700">スタッフ管理</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">LINEで「名前登録:田中」と送信すると自動登録されます</div>
+    </div>
+    <button class="btn-secondary" style="padding:6px 14px;font-size:13px" onclick="initStaffView()">🔄 更新</button>
+  </div>
+  <div id="staff-list-body"></div>
+</div>
+<script>
+(function(){
+  var ELVIN_API = 'https://api.nihon-neon.jp';
+  var ELVIN_TOKEN = '4507171597d749daa3dd6d1d118122d3';
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+  window.initStaffView = async function() {
+    var body = document.getElementById('staff-list-body');
+    body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted)">読み込み中...</div>';
+    try {
+      var res = await fetch(ELVIN_API + '/api/v1/staff', {headers:{'X-Client-Token':ELVIN_TOKEN}});
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var staff = await res.json();
+      if (!staff.length) {
+        body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted)">スタッフが登録されていません<br><span style="font-size:12px">LINEで「名前登録:田中」と送信すると追加されます</span></div>';
+        return;
+      }
+      body.innerHTML = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">' +
+        staff.map(function(s,i){
+          return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;' + (i<staff.length-1?'border-bottom:1px solid var(--border)':'') + '">' +
+          '<div><div style="font-size:14px;font-weight:600">' + esc(s.name) + '</div>' +
+          '<div style="font-size:11px;color:var(--muted);margin-top:2px">LINE ID: ' + esc(s.line_user_id||'-') + '</div>' +
+          '<div style="font-size:11px;color:var(--muted)">登録: ' + esc((s.created_at||'').slice(0,10)) + '</div></div>' +
+          '<button onclick="deleteStaffMember(\'' + esc(s.id) + '\',\'' + esc(s.name) + '\')" ' +
+          'style="background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#ef4444;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px">削除</button></div>';
+        }).join('') + '</div>';
+    } catch(e) {
+      body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--red)">読み込み失敗: ' + e.message + '</div>';
+    }
+  };
+
+  window.deleteStaffMember = async function(id, name) {
+    if (!confirm('「' + name + '」を削除しますか？')) return;
+    try {
+      var res = await fetch(ELVIN_API + '/api/v1/staff/' + encodeURIComponent(id), {method:'DELETE',headers:{'X-Client-Token':ELVIN_TOKEN}});
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (typeof showToast === 'function') showToast('削除しました: ' + name);
+      window.initStaffView();
+    } catch(e) {
+      if (typeof showToast === 'function') showToast('削除失敗: ' + e.message);
+    }
+  };
+
+  var _origSwitchTab = null;
+  function patchSwitchTab() {
+    if (typeof switchTab === 'function' && switchTab !== _patchedSwitchTab) {
+      _origSwitchTab = switchTab;
+      window.switchTab = _patchedSwitchTab;
+    }
+  }
+  function _patchedSwitchTab(name) {
+    var sv = document.getElementById('staff-view');
+    if (name === 'staff') {
+      if (sv) sv.style.display = 'block';
+      document.querySelectorAll('.sb-item').forEach(function(e){e.classList.remove('active');});
+      var s = document.querySelector('.sb-item[data-tab="staff"]');
+      if (s) s.classList.add('active');
+      window.initStaffView();
+    } else {
+      if (sv) sv.style.display = 'none';
+      if (_origSwitchTab) _origSwitchTab(name);
+    }
+  }
+  setTimeout(patchSwitchTab, 100);
+  document.addEventListener('DOMContentLoaded', patchSwitchTab);
+})();
+</script>
 
 <!-- ログインモーダル -->
 <div id="login-modal" class="modal-overlay" style="z-index:9999;align-items:center">
