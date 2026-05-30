@@ -2115,7 +2115,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       document.getElementById('da-cat-m').value = '';
       document.getElementById('da-days-m').value = '7';
       if (typeof showToast==='function') showToast('期限アラートを登録しました');
-      await loadDeadlineAlerts();
+      setTimeout(function(){ loadDeadlineAlerts(); }, 300);
     } catch(e) { if (typeof showToast==='function') showToast('登録失敗: '+e.message); }
   };
 
@@ -2123,7 +2123,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     try {
       await apiCall('PATCH', '/api/v1/client/deadline-alerts/'+id, {status:'done'});
       if (typeof showToast==='function') showToast('完了にしました');
-      await loadDeadlineAlerts();
+      setTimeout(function(){ loadDeadlineAlerts(); }, 300);
     } catch(e) { if (typeof showToast==='function') showToast('更新失敗: '+e.message); }
   };
 
@@ -2132,7 +2132,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     try {
       await apiCall('DELETE', '/api/v1/client/deadline-alerts/'+id);
       if (typeof showToast==='function') showToast('削除しました');
-      await loadDeadlineAlerts();
+      setTimeout(function(){ loadDeadlineAlerts(); }, 300);
     } catch(e) { if (typeof showToast==='function') showToast('削除失敗: '+e.message); }
   };
 
