@@ -2522,7 +2522,14 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
         }
         console.log('[C-11] changed='+changed+' staff='+JSON.stringify(entry.staff));
         if (changed) {
-          localStorage.setItem(SCH_KEY, JSON.stringify(entries));
+          var serialized = JSON.stringify(entries);
+          localStorage.setItem(SCH_KEY, serialized);
+          // サーバーにも同期（lsSave と同等処理）
+          fetch('api.php', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json', 'X-AGO-Token': 'system002-od'},
+            body: JSON.stringify({action:'kv_set', key: SCH_KEY, value: serialized})
+          }).catch(function() {});
           if (_dragEl) { td.appendChild(_dragEl); _dragEl.dataset.fromUser = toUser || _dragFromUser || ''; _dragEl.style.opacity = ''; }
           if (typeof window.showToast === 'function') window.showToast('スケジュールを更新しました');
         }
