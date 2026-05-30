@@ -309,6 +309,32 @@ if (!empty($deferred)) {
     foreach ($deferred as $entry) {
         wh_log('[BG] processing userId=' . $entry['userId'] . ' text=' . mb_substr($entry['text'], 0, 30));
 
+        // ── 名前登録コマンド直接処理（AIを通さずVPSに書き込む） ──────────
+        $raw_text_reg = $entry['text'] ?? '';
+        $clean_for_reg = trim(preg_replace('/^(ウルバン|urvan)\s*/iu', '', $raw_text_reg));
+        if (preg_match('/^名前登録[:：](.+)$/u', $clean_for_reg, $nm)) {
+            $staff_name = trim($nm[1]);
+            $line_uid   = $entry['userId'] ?? '';
+            if ($staff_name && $line_uid) {
+                $reg_ch = curl_init('https://api.nihon-neon.jp/api/v1/staff');
+                curl_setopt_array($reg_ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST           => true,
+                    CURLOPT_POSTFIELDS     => json_encode(['line_user_id' => $line_uid, 'name' => $staff_name]),
+                    CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'X-Client-Token: 4507171597d749daa3dd6d1d118122d3'],
+                    CURLOPT_TIMEOUT        => 10,
+                ]);
+                $reg_res  = curl_exec($reg_ch);
+                $reg_code = curl_getinfo($reg_ch, CURLINFO_HTTP_CODE);
+                curl_close($reg_ch);
+                wh_log('[STAFF_REG] name=' . $staff_name . ' uid=' . $line_uid . ' code=' . $reg_code);
+                if ($reg_code === 200 && $LINE_CHANNEL_TOKEN && !empty($entry['reply_token'])) {
+                    line_reply($LINE_CHANNEL_TOKEN, $entry['reply_token'], "✅ {$staff_name}さんとして登録しました\n以降のメッセージは{$staff_name}として処理されます");
+                }
+                continue; // AIには渡さない
+            }
+        }
+
         // ── 「PDFにして」PHP直接処理（AIを通さず確実に実行） ──────────
         $raw_text = $entry['text'] ?? '';
         if (preg_match('/PDFにして|PDFに変換|PDF.*にして/u', $raw_text)) {
