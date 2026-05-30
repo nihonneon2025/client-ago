@@ -768,6 +768,8 @@ function execute_action($action, $userId, $users_map, $ts, $line_token = '', $ka
                     'log_id'             => $log_id,
                     'recent_context'     => $recent_context,
                     'line_channel_token' => $line_token,
+                    'web_push_url'       => 'https://system002-od.ordermade-neon.com/subscribe.php',
+                    'web_push_token'     => 'system002-od',
                 ],
             ]);
             $ch = curl_init($bt_url);

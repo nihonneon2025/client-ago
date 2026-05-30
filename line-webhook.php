@@ -399,6 +399,8 @@ if (!empty($deferred)) {
                     'log_id'             => $entry['id'] ?? null,
                     'recent_context'     => '',
                     'line_channel_token' => $LINE_CHANNEL_TOKEN,
+                    'web_push_url'       => 'https://system002-od.ordermade-neon.com/subscribe.php',
+                    'web_push_token'     => 'system002-od',
                 ],
             ]);
             $ch = curl_init('https://api.nihon-neon.jp/api/v1/tasks');
