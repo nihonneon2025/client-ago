@@ -1989,8 +1989,10 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
 
   var ALL_VIEWS = ['dashboard-view','customer-view','monthly-view','projects-view','line-view','accounting-view','instructions-view','attendance-view','schedule-view','detail-view'];
   var _origSwitchTab = null;
+  var _staffPatched = false;
   function patchSwitchTab() {
-    if (typeof switchTab === 'function' && switchTab !== _patchedSwitchTab) {
+    if (!_staffPatched && typeof switchTab === 'function') {
+      _staffPatched = true;
       _origSwitchTab = switchTab;
       window.switchTab = _patchedSwitchTab;
     }
@@ -2316,6 +2318,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
 
   var ALL_VIEWS_ALERTS = ['dashboard-view','customer-view','monthly-view','projects-view','line-view','accounting-view','instructions-view','attendance-view','schedule-view','detail-view','staff-view'];
   var _origSwitchTabAlerts = null;
+  var _alertsPatched = false;
   function _patchedSwitchTabAlerts(name) {
     var av = document.getElementById('alerts-view');
     if (name === 'alerts') {
@@ -2331,7 +2334,8 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     }
   }
   function patchSwitchTabAlerts() {
-    if (typeof switchTab==='function' && switchTab!==_patchedSwitchTabAlerts) {
+    if (!_alertsPatched && typeof switchTab==='function') {
+      _alertsPatched = true;
       _origSwitchTabAlerts = switchTab;
       window.switchTab = _patchedSwitchTabAlerts;
     }
