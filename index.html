@@ -2654,9 +2654,13 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
         d.bar.style.left = (newStart / 1440 * 100) + '%';
       }
 
-      // 縦移動: ターゲット行ハイライト
-      var el = document.elementFromPoint(ev.clientX, ev.clientY);
-      var tgtRow = el && el.closest('.tl-row[data-uid]');
+      // 縦移動: Y座標でどの行にいるか直接判定（zIndexに影響されない）
+      var rows = chart.querySelectorAll('.tl-row[data-uid]');
+      var tgtRow = null;
+      for (var i = 0; i < rows.length; i++) {
+        var rect = rows[i].getBoundingClientRect();
+        if (ev.clientY >= rect.top && ev.clientY <= rect.bottom) { tgtRow = rows[i]; break; }
+      }
       chart.querySelectorAll('.tl-row').forEach(function(r){ r.style.outline=''; r.style.background=''; });
       if (tgtRow && tgtRow !== d.row) {
         tgtRow.style.outline = '2px solid #6366f1';
