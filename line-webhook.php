@@ -127,6 +127,7 @@ foreach ($events as $event) {
         if (!$quoted_text && $LINE_CHANNEL_TOKEN) {
             $q_fname = $q['fileName'] ?? null;
             $q_type  = $q['type'] ?? '';
+            wh_log('[QUOTE_OBJ] keys=' . implode(',', array_keys($q)) . ' type=' . $q_type . ' fname=' . ($q_fname ?? 'none'));
             if ($q_fname || in_array($q_type, ['file', 'image', 'video'])) {
                 $fname = $q_fname ?? ($q_type === 'image' ? $quoted_id . '.jpg' : $quoted_id . '.bin');
                 // 画像の場合はbase64でタスクに直接埋め込む（URLが非公開のため）
@@ -153,9 +154,9 @@ foreach ($events as $event) {
         // ③ キャッシュから照合（フォールバック）
         if (!$quoted_text) {
             $msg_cache = json_decode(ago_kv_get('ago_line_msg_cache') ?? '{}', true) ?: [];
-            // ③-A: メッセージIDで照合
+            // ③-A: メッセージIDで照合（image型はURL非公開のためURLフォールバックしない）
             $cached = $msg_cache[$quoted_id] ?? null;
-            if (is_array($cached) && isset($cached['url'])) {
+            if (is_array($cached) && isset($cached['url']) && ($cached['type'] ?? '') !== 'image') {
                 $quoted_text = '[ファイル:' . ($cached['filename'] ?? 'file') . ' URL:' . $cached['url'] . ']';
                 wh_log('[QUOTE] cache hit by id: ' . ($cached['filename'] ?? '?'));
             } elseif (is_string($cached)) {
@@ -544,7 +545,9 @@ function get_line_file_b64($message_id, $token) {
     ]);
     $content = curl_exec($ch);
     $code    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $cerr    = curl_error($ch);
     curl_close($ch);
+    wh_log('[get_line_file_b64] id=' . $message_id . ' code=' . $code . ' err=' . ($cerr ?: 'none') . ' size=' . strlen($content ?: ''));
     if ($code !== 200 || !$content) return null;
     // GDで縮小（最大1000px・容量削減）
     if (function_exists('imagecreatefromstring')) {
