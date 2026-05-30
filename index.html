@@ -2593,17 +2593,23 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       var eid = parseInt(m[0]);
       bar.style.cursor = 'grab';
 
+      // バー自身にuidを記録（行のdata-uidより確実）
+      var initRow = bar.closest('.tl-row');
+      if (initRow && initRow.dataset.uid) bar.dataset.fromUid = initRow.dataset.uid;
+
       bar.addEventListener('mousedown', function(ev) {
         if (ev.button !== 0) return;
         ev.preventDefault(); ev.stopPropagation();
         var row = bar.closest('.tl-row');
         var rowBar = row && row.querySelector('.tl-row-bar');
         if (!rowBar) return;
+        // fromUid: バー自身の記録 → 行のdata-uid → null の順で取得
+        var fromUid = bar.dataset.fromUid || (row && row.dataset.uid) || null;
+        console.log('[C-12 TL] drag: eid='+eid+' fromUid='+fromUid);
         var entries = [];
         try { entries = JSON.parse(localStorage.getItem(SCH_KEY)) || []; } catch(e) {}
         var entry = entries.find(function(e) { return e.id == eid; });
         if (!entry) return;
-        // 開始・終了時間をパース
         var startMin = null, duration = 60;
         if (entry.start_time) {
           var sp = entry.start_time.split(':').map(Number);
@@ -2618,7 +2624,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
           bar:bar, eid:eid, row:row, rowBar:rowBar,
           startX:ev.clientX, startY:ev.clientY,
           origLeft:bar.style.left, origStartMin:startMin, duration:duration,
-          fromUid:row&&row.dataset.uid||null,
+          fromUid:fromUid,
           pendingStartMin:startMin, pendingUid:null, moved:false
         };
         bar.style.cursor='grabbing'; bar.style.opacity='0.75';
@@ -2684,11 +2690,13 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       // 担当者変更（縦移動して別行にいる場合）
       if (d.pendingUid && d.pendingUid !== d.fromUid) {
         if (!Array.isArray(entry.staff)) entry.staff = [];
-        entry.staff = entry.staff.filter(function(u){ return u !== d.fromUid; });
+        if (d.fromUid) entry.staff = entry.staff.filter(function(u){ return u !== d.fromUid; });
         if (!entry.staff.includes(d.pendingUid)) entry.staff.push(d.pendingUid);
+        console.log('[C-12 TL] staff change: '+d.fromUid+'→'+d.pendingUid+' staff='+JSON.stringify(entry.staff));
         changed = true;
         var tgtRB = chart.querySelector('.tl-row[data-uid="'+d.pendingUid+'"] .tl-row-bar');
         if (tgtRB) tgtRB.appendChild(d.bar);
+        d.bar.dataset.fromUid = d.pendingUid; // 次回ドラッグのために更新
       }
       if (changed) {
         syncServer(entries);
