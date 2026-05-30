@@ -2428,12 +2428,10 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
 })();
 </script>
 <script>
-// C-11: ガントチャートD&D（担当者変更・日付変更）
+// C-11: ガントチャートD&D（担当者変更・日付変更）v2
 (function() {
-  var _c11Patched = false;
-  var _dragEntryId = null, _dragFromUser = null, _dragEl = null;
+  var _dragEntryId = null, _dragFromUser = null, _dragEl = null, _dragTr = null;
 
-  // localStorageからスケジュールエントリキーを動的検出
   function findSchKey() {
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
@@ -2446,48 +2444,67 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     return null;
   }
 
-  // ヘッダーセル位置→日付文字列（例: "5/26(火)" → "2026-05-26"）
+  function loadEntries() {
+    var k = findSchKey();
+    if (!k) return [];
+    try { return JSON.parse(localStorage.getItem(k)) || []; } catch(e) { return []; }
+  }
+
   function dateFromHeader(container, colIndex) {
     var th = container.querySelectorAll('thead th')[colIndex];
     if (!th) return null;
-    var txt = th.textContent.trim();
-    var m = txt.match(/(\d+)\/(\d+)/);
+    var m = th.textContent.trim().match(/(\d+)\/(\d+)/);
     if (!m) return null;
     var y = new Date().getFullYear();
-    var mo = ('0' + m[1]).slice(-2), d = ('0' + m[2]).slice(-2);
-    return y + '-' + mo + '-' + d;
+    return y + '-' + ('0'+m[1]).slice(-2) + '-' + ('0'+m[2]).slice(-2);
   }
 
-  // 行内の既存バッジからユーザーIDを取得
-  function userFromRow(tr) {
-    var badge = tr.querySelector('.sch-cell-entry[data-from-user]');
-    return badge ? badge.dataset.fromUser : null;
-  }
-
-  // バッジをdraggable化・data属性付与
   function patchBadges(container) {
-    container.querySelectorAll('.sch-cell-entry').forEach(function(span) {
-      if (span.dataset.c11) return;
-      span.dataset.c11 = '1';
-      var oc = span.getAttribute('onclick') || '';
-      var m = oc.match(/\d+/);
-      if (!m) return;
-      span.dataset.entryId = m[0];
-      // 親tdのdata-user-idがあれば使う、なければ行内バッジから
-      var td = span.closest('td');
-      var tr = span.closest('tr');
-      var uid = (td && td.dataset.userId) || userFromRow(tr) || '';
-      if (uid) span.dataset.fromUser = uid;
-      span.draggable = true;
-      span.addEventListener('dragstart', function(ev) {
-        ev.stopPropagation(); // 行D&Dを阻止
-        _dragEntryId = parseInt(span.dataset.entryId);
-        _dragFromUser = span.dataset.fromUser || null;
-        _dragEl = span;
-        ev.dataTransfer.effectAllowed = 'move';
-        setTimeout(function() { span.style.opacity = '0.4'; }, 0);
+    var entries = loadEntries();
+    // 各行にdata-c11-userを付与（バッジがある行から判定）
+    container.querySelectorAll('tbody tr').forEach(function(tr) {
+      container.querySelectorAll('.sch-cell-entry').forEach(function(span) {
+        if (span.dataset.c11) return;
+        span.dataset.c11 = '1';
+        var m = (span.getAttribute('onclick') || '').match(/\d+/);
+        if (!m) return;
+        var eid = parseInt(m[0]);
+        span.dataset.entryId = m[0];
+
+        // localStorageのentryからstaffを逆引き
+        var entry = entries.find(function(e) { return e.id === eid; });
+        var td = span.closest('td');
+        var uid = (td && td.dataset.userId)
+               || (entry && Array.isArray(entry.staff) && entry.staff[0])
+               || null;
+        if (uid) {
+          span.dataset.fromUser = uid;
+          // 同じ行の全tdにもdata-c11-userを伝播
+          var parentTr = span.closest('tr');
+          if (parentTr) {
+            parentTr.querySelectorAll('td').forEach(function(cell) {
+              if (!cell.dataset.c11User) cell.dataset.c11User = uid;
+            });
+          }
+        }
+
+        span.draggable = true;
+        span.addEventListener('dragstart', function(ev) {
+          // 行D&Dを物理的に無効化
+          _dragTr = span.closest('tr');
+          if (_dragTr && _dragTr.draggable) _dragTr.draggable = false;
+          ev.stopPropagation();
+          _dragEntryId = eid;
+          _dragFromUser = span.dataset.fromUser || null;
+          _dragEl = span;
+          ev.dataTransfer.effectAllowed = 'move';
+          setTimeout(function() { span.style.opacity = '0.4'; }, 0);
+        });
+        span.addEventListener('dragend', function() {
+          if (_dragTr) { _dragTr.draggable = true; _dragTr = null; }
+          span.style.opacity = '';
+        });
       });
-      span.addEventListener('dragend', function() { span.style.opacity = ''; });
     });
   }
 
@@ -2499,7 +2516,6 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       var td = ev.target.closest('td');
       if (!td || td.classList.contains('staff-name')) return;
       ev.preventDefault();
-      ev.dataTransfer.dropEffect = 'move';
       td.style.outline = '2px solid #6366f1';
       td.style.background = 'rgba(99,102,241,.12)';
     });
@@ -2512,14 +2528,17 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       var td = ev.target.closest('td');
       if (!td || td.classList.contains('staff-name') || _dragEntryId === null) return;
       td.style.outline = ''; td.style.background = '';
+      if (_dragTr) { _dragTr.draggable = true; _dragTr = null; }
 
-      // 日付: tdのdata-date優先、なければヘッダー位置から算出
       var toDate = td.dataset.date || (function() {
         var cells = Array.from(td.closest('tr').cells);
         return dateFromHeader(container, cells.indexOf(td));
       })();
-      // ユーザー: tdのdata-user-id優先、なければ行から取得
-      var toUser = td.dataset.userId || userFromRow(td.closest('tr'));
+      var toUser = td.dataset.userId || td.dataset.c11User
+               || (function() {
+                    var b = td.closest('tr').querySelector('.sch-cell-entry[data-from-user]');
+                    return b ? b.dataset.fromUser : null;
+                  })();
 
       var key = findSchKey();
       if (!key) return;
@@ -2537,12 +2556,11 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
         }
         if (changed) {
           localStorage.setItem(key, JSON.stringify(entries));
-          if (_dragEl) { td.appendChild(_dragEl); _dragEl.style.opacity = ''; }
+          if (_dragEl) { td.appendChild(_dragEl); _dragEl.dataset.fromUser = toUser || _dragFromUser || ''; _dragEl.style.opacity = ''; }
           if (typeof window.showToast === 'function') window.showToast('スケジュールを更新しました');
-          // ビュー再描画
           setTimeout(function() {
             if (typeof window.initScheduleView === 'function') window.initScheduleView();
-          }, 300);
+          }, 400);
         }
       } catch(e) { console.error('C-11:', e); }
       _dragEntryId = null; _dragFromUser = null; _dragEl = null;
@@ -2553,7 +2571,6 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
       .observe(container, { childList: true, subtree: true });
   }
 
-  // scheduleタブ切り替え時に初期化
   var _stPatched = false;
   function patchST() {
     if (_stPatched || typeof switchTab !== 'function') return;
