@@ -1840,8 +1840,8 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
           </select>
         </div>
         <div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">LINEルーム名（省略可）</div>
-          <input id="ca-room-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: AGO全体">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">LINEルーム名 <span style="color:#ef4444">*</span></div>
+          <input id="ca-room-m" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text)" placeholder="例: AGO全体（正確なルーム名）">
         </div>
       </div>
       <div style="text-align:right">
@@ -2048,7 +2048,7 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     var date = document.getElementById('ca-date-m').value;
     var itemId = document.getElementById('ca-item-m').value;
     var room = document.getElementById('ca-room-m').value.trim();
-    if (!name || !date || !itemId) { alert('現場名・着工日・発注品目は必須です'); return; }
+    if (!name || !date || !itemId || !room) { alert('現場名・着工日・発注品目・LINEルーム名は必須です'); return; }
     try {
       await apiCall('POST', '/api/v1/client/construction-alerts', {
         construction_name:name, construction_date:date, order_master_id:itemId, lineworks_room:room
