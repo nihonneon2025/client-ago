@@ -414,7 +414,7 @@ SYS;
     $actions   = $parsed['actions'] ?? [];
 
     // ── actions が空でも作業を示唆する返答の場合は1回リトライ ────────
-    if (empty($actions) && preg_match('/作成します|作ります|Claude.*で|プッシュ通知でお知らせ|実行します|送付します|保存します|ドライブに|対応します/u', $reply_msg)) {
+    if (empty($actions) && preg_match('/作成します|作ります|Claude.*で|プッシュ通知でお知らせ|実行します|送付します|保存します|ドライブに|対応します|設定します|登録します|追加します|処理します|処理中|確認します|変更します|更新します|削除します/u', $reply_msg)) {
         wh_log('[RETRY] actions=[] but reply suggests action. Retrying...');
         $retry_msgs   = $messages;
         $retry_msgs[] = ['role' => 'assistant', 'content' => $raw];
