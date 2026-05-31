@@ -2297,10 +2297,23 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
   };
 
   window.toggleRecurringEnabled = async function(id, val) {
+    var enabled = (val === true || val === 'true');
+    var el = document.querySelector('[data-rid="'+id+'"]');
+    if (el) {
+      el.children[0].style.background = enabled ? '#6366f1' : '#ccc';
+      el.children[1].style.left = enabled ? '18px' : '3px';
+      el.onclick = function(){ toggleRecurringEnabled(id, !enabled); };
+    }
     try {
-      await apiCall('PATCH', '/api/v1/client/recurring-tasks/'+id, {enabled: val ? 1 : 0});
+      await apiCall('PATCH', '/api/v1/client/recurring-tasks/'+id, {enabled: enabled ? 1 : 0});
       await loadRecurringTasks();
-    } catch(e) {}
+    } catch(e) {
+      if (el) {
+        el.children[0].style.background = enabled ? '#ccc' : '#6366f1';
+        el.children[1].style.left = enabled ? '3px' : '18px';
+      }
+      if (typeof showToast==='function') showToast('更新に失敗しました');
+    }
   };
 
   window.deleteRecurringTask = async function(id) {
@@ -2329,13 +2342,13 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
         var dayStr = rt==='daily' ? '毎日' :
           rt==='weekly' ? dayNames[rd]+'曜日' :
           '毎月'+rd+'日';
+        var onColor = r.enabled ? '#6366f1' : '#ccc';
+        var knobLeft = r.enabled ? '18px' : '3px';
         return '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)">'
-          + '<label style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0">'
-          + '<input type="checkbox"'+(r.enabled?' checked':'')
-          + ' onchange="toggleRecurringEnabled(\''+r.id+'\',this.checked)"'
-          + ' style="opacity:0;width:0;height:0">'
-          + '<span style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:'+(r.enabled?'#6366f1':'#ccc')+';border-radius:10px;transition:.2s">'
-          + '<span style="position:absolute;content:\'\';height:14px;width:14px;left:'+(r.enabled?'18px':'3px')+';bottom:3px;background:#fff;border-radius:50%;transition:.2s"></span></span></label>'
+          + '<div onclick="toggleRecurringEnabled(\''+r.id+'\','+(r.enabled?'false':'true')+')" data-rid="'+r.id+'" class="rt-toggle" style="position:relative;width:36px;height:20px;flex-shrink:0;cursor:pointer">'
+          + '<div style="position:absolute;top:0;left:0;right:0;bottom:0;background:'+onColor+';border-radius:10px;transition:background .2s"></div>'
+          + '<div style="position:absolute;height:14px;width:14px;left:'+knobLeft+';top:3px;background:#fff;border-radius:50%;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>'
+          + '</div>'
           + '<div style="flex:1">'
           + '<div style="font-size:13px;font-weight:600'+(r.enabled?'':';color:var(--muted)')+'">'+r.title+'</div>'
           + '<div style="font-size:11px;color:var(--muted);margin-top:2px">'+dayStr+' '+r.notify_time+' 通知　LINE: '+r.lineworks_room+'</div>'
