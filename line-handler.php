@@ -391,7 +391,7 @@ SYS;
     $messages[] = ['role' => 'user', 'content' => $text];
     wh_log('[AI_CALL] msgs=' . count($messages) . ' sys_len=' . strlen($system) . ' text_len=' . strlen($text));
 
-    $raw = ai_call($api_key, $system, $messages, 1500);
+    $raw = ai_call_vps($system, $messages, 1500);
 
     // JSONパース（```json...``` ブロックにも対応）
     $clean  = preg_replace('/^```json\s*|\s*```$/m', '', trim($raw ?? ''));
@@ -412,7 +412,7 @@ SYS;
         $retry_msgs   = $messages;
         $retry_msgs[] = ['role' => 'assistant', 'content' => $raw];
         $retry_msgs[] = ['role' => 'user',      'content' => '※ actionsが空でした。ELVIN_taskが必要な作業であれば必ずactionsに{"type":"ELVIN_task","prompt":"..."}を含めてください。'];
-        $raw2   = ai_call($api_key, $system, $retry_msgs, 1500);
+        $raw2   = ai_call_vps($system, $retry_msgs, 1500);
         $clean2 = preg_replace('/^```json\s*|\s*```$/m', '', trim($raw2 ?? ''));
         preg_match('/\{[\s\S]*\}/u', $clean2, $m2);
         $parsed2 = json_decode($m2[0] ?? '{}', true);
@@ -1040,6 +1040,49 @@ function normalize_items($items) {
         'unit'        => (string)($i['unit'] ?? '式'),
         'unit_price'  => (int)($i['unit_price'] ?? 0),
     ], $items);
+}
+
+function ai_call_vps($system, $messages, $max_tokens = 1500) {
+    $vps_url   = 'https://api.nihon-neon.jp/api/v1/ai/run';
+    $vps_token = '4507171597d749daa3dd6d1d118122d3';
+    $payload = [
+        'messages'   => $messages,
+        'system'     => $system,
+        'max_tokens' => $max_tokens,
+        'model'      => 'claude-haiku-4-5-20251001',
+    ];
+    $body = json_encode($payload);
+
+    $max_attempts = 3;
+    for ($attempt = 1; $attempt <= $max_attempts; $attempt++) {
+        $ch = curl_init($vps_url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $body,
+            CURLOPT_HTTPHEADER     => [
+                'Content-Type: application/json',
+                'X-Client-Token: ' . $vps_token,
+            ],
+            CURLOPT_TIMEOUT => 90,
+        ]);
+        $res  = curl_exec($ch);
+        $err  = curl_error($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($err) { wh_log('[AI_VPS_CURL_ERR] attempt=' . $attempt . ' ' . $err); return null; }
+        $data = json_decode($res, true);
+        if (isset($data['output'])) return $data['output'];
+
+        wh_log('[AI_VPS_ERR] attempt=' . $attempt . ' code=' . $code . ' ' . mb_substr($res ?? '', 0, 200));
+        if (in_array($code, [429, 529]) && $attempt < $max_attempts) {
+            sleep($attempt * 5);
+            continue;
+        }
+        break;
+    }
+    return null;
 }
 
 function ai_call($api_key, $system, $messages, $max_tokens = 1500) {
