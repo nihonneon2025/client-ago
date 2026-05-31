@@ -2296,29 +2296,21 @@ const _0x3686d6=_0x166c;(function(_0x37f1f0,_0x1ec767){const _0x4a187a=_0x166c,_
     } catch(e) { if (typeof showToast==='function') showToast('登録失敗: '+e.message); }
   };
 
-  window.toggleRecurringEnabled = async function(id, val) {
-    var enabled = (val === true || val === 'true');
+  window.toggleRecurringEnabled = function(id, newVal) {
     var el = document.querySelector('[data-rid="'+id+'"]');
     if (el) {
-      el.children[0].style.background = enabled ? '#6366f1' : '#ccc';
-      el.children[1].style.left = enabled ? '18px' : '3px';
+      el.children[0].style.background = newVal ? '#6366f1' : '#ccc';
+      el.children[1].style.left = newVal ? '18px' : '3px';
+      el.setAttribute('onclick', "toggleRecurringEnabled('"+id+"',"+ !newVal +")");
     }
-    try {
-      var res = await fetch('https://api.nihon-neon.jp/api/v1/client/recurring-tasks/'+id, {
-        method: 'PATCH',
-        headers: {'X-Client-Token':'4507171597d749daa3dd6d1d118122d3','Content-Type':'application/json'},
-        body: JSON.stringify({enabled: enabled ? 1 : 0})
-      });
-      if (!res.ok) throw new Error('HTTP '+res.status);
-    } catch(e) {
+    apiCall('PATCH', '/api/v1/client/recurring-tasks/'+id, {enabled: newVal ? 1 : 0}).catch(function(e){
       if (el) {
-        el.children[0].style.background = enabled ? '#ccc' : '#6366f1';
-        el.children[1].style.left = enabled ? '3px' : '18px';
+        el.children[0].style.background = newVal ? '#ccc' : '#6366f1';
+        el.children[1].style.left = newVal ? '3px' : '18px';
+        el.setAttribute('onclick', "toggleRecurringEnabled('"+id+"',"+newVal+")");
       }
-      if (typeof showToast==='function') showToast('更新に失敗しました');
-      return;
-    }
-    try { await loadRecurringTasks(); } catch(e) {}
+      if (typeof showToast==='function') showToast('更新に失敗しました: '+e.message);
+    });
   };
 
   window.deleteRecurringTask = async function(id) {
